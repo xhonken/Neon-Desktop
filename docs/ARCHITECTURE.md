@@ -22,7 +22,7 @@ Broker (small privileged authentication and lifecycle component)
 
 The gateway cannot select a target UID or executable. The broker derives identity from a cryptographically random capability issued only after PAM succeeds. Only fixed unit templates and integer UIDs derived from the Linux account database reach systemctl. The broker has no network address families except AF_UNIX. A gateway compromise can steal sessions/credentials passing through it; it does not provide an arbitrary root command or filesystem API. Broker/parser/PAM vulnerabilities remain part of the trusted computing base.
 
-Workers are system services under each Linux UID. Their processes do not depend on a browser window. Closing a window disconnects a stream; it does not kill a shell. Explicit process termination is separate. Worker failure/reboot kills its processes; UI recovery must report a missing process instead of presenting a fake continuation.
+Workers are system services under each Linux UID. Their processes do not depend on a browser window. Closing a window disconnects a stream; it does not kill a shell. Explicit process termination is separate. Web logout revokes access but does not stop worker or browser processes. Chromium has no disconnected idle termination timer. Worker failure/reboot kills its processes; UI recovery must report a missing process instead of presenting a fake continuation.
 
 NoNewPrivileges and an empty capability bounding set are intentional: the web terminal cannot elevate via sudo/setuid. Use SSH for privileged administration. Linux filesystem permissions still govern ordinary terminal operations. The File Manager/Editor APIs have a stricter HOME-only policy.
 
@@ -31,6 +31,7 @@ NoNewPrivileges and an empty capability bounding set are intentional: the web te
 - `/etc/neon-desktop/environment`: deployment origin, no passwords.
 - `/var/lib/neon-broker/sessions.sqlite3`: root-private sessions, grants and audit metadata. Session tokens are stored only as SHA-256 digests. CSRF tokens are not login credentials.
 - `~/.config/neon-desktop/desktop.json`: geometry, pins, settings, document paths and terminal IDs.
+- `~/.config/neon-desktop/editor-<uuid>.json`: bounded private editor recovery snapshots, separate from explicit document saves.
 - `~/.config/neon-desktop/ssh-hosts.json`: nonsecret host metadata only.
 - `~/.local/share/neon-desktop/browser`: per-user Chromium profile.
 - `/run/neon-{worker,browser}-UID/api.sock`: private socket accessible only to its Linux user/root.

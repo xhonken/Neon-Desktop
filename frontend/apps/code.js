@@ -16,6 +16,18 @@ export async function mount(w, c) {
     area = el("div", { class: "editor-area" }),
     status = el("div", { class: "app-status", text: "UTF-8 · CodeMirror 6" });
   const docs = [];
+  const previousPaths = [...(w.state.paths || [])];
+  const previousRecovery = w.state.editorRecovery;
+  if (!/^[a-f0-9-]{36}$/.test(w.state.editorRecovery || ""))
+    w.state.editorRecovery = crypto.randomUUID();
+  const recoveryPath =
+    ".config/neon-desktop/editor-" + w.state.editorRecovery + ".json";
+  let draftTimer,
+    draftQueue = Promise.resolve(),
+    ready = false,
+    closed = false,
+    draftPending = false;
+
   let active,
     view,
     root = w.state.root || ".",
@@ -54,6 +66,7 @@ export async function mount(w, c) {
             active.dirty = true;
             active.state = update.state;
             renderTabs();
+            persist();
           }
           if (update.selectionSet) {
             const sel = update.state.selection.main;
@@ -99,7 +112,56 @@ export async function mount(w, c) {
     w.state.paths = docs.filter((d) => d.path).map((d) => d.path);
     w.state.root = root;
     c.save();
+    if (ready && !closed) {
+      draftPending = true;
+      clearTimeout(draftTimer);
+      draftTimer = setTimeout(
+        () =>
+          flushDraft().catch(() => {
+            status.textContent =
+              "Draft not yet saved to server — keep this page open until reconnected.";
+          }),
+        700,
+      );
+    }
   }
+  async function flushDraft() {
+    if (!ready || closed) return;
+    clearTimeout(draftTimer);
+    const draft = {
+      version: 1,
+      root,
+      active: docs.indexOf(active),
+      documents: docs.map((d) => ({
+        path: d.path,
+        dirty: d.dirty,
+        revision: d.revision,
+        text:
+          d.dirty || !d.path
+            ? ((d === active && view ? view.state : d.state)?.doc.toString() ??
+              d.text)
+            : "",
+      })),
+    };
+    const data = encoder.encode(JSON.stringify(draft));
+    if (data.length > 14 * 1024 * 1024)
+      throw Error(
+        "Editor recovery exceeds 14 MiB. Save documents before signing out.",
+      );
+    draftPending = true;
+    const task = draftQueue
+      .catch(() => {})
+      .then(() =>
+        c.call("files.write", { path: recoveryPath, data: base64(data) }),
+      );
+    draftQueue = task;
+    await task;
+    if (draftQueue === task) draftPending = false;
+  }
+  w.flush = flushDraft;
+  const reconnectOff = c.onReconnect(() => {
+    if (draftPending && !closed) flushDraft().catch(() => {});
+  });
   function select(doc) {
     if (active && view) active.state = view.state;
     active = doc;
@@ -262,30 +324,94 @@ export async function mount(w, c) {
     ),
     status,
   );
-  await project();
-  for (const path of w.state.paths || []) {
+  let recovered;
+  if (previousRecovery) {
     try {
-      await open(path);
+      const b = await c.call("files.read", { path: recoveryPath });
+      const draft = JSON.parse(decoder.decode(unbase64(b.data)));
+      if (
+        draft.version !== 1 ||
+        !Array.isArray(draft.documents) ||
+        draft.documents.length > 100 ||
+        draft.documents.some(
+          (d) => typeof d.path !== "string" || typeof d.text !== "string",
+        )
+      )
+        throw Error("Invalid editor recovery data");
+      recovered = draft;
     } catch (e) {
-      c.notify(path + ": " + e.message);
+      c.notify("Editor recovery unavailable: " + e.message);
     }
   }
+  try {
+    await project();
+  } catch (e) {
+    c.notify("Project folder unavailable: " + e.message);
+    root = ".";
+    await project();
+  }
+  if (recovered) {
+    for (const d of recovered.documents) {
+      // Clean documents follow the real filesystem; unsaved changes retain their original revision.
+      if (!d.dirty && d.path) {
+        try {
+          await open(d.path);
+          continue;
+        } catch (e) {
+          c.notify("Could not reopen " + d.path + ": " + e.message);
+          continue;
+        }
+      }
+      docs.push({ ...d, dirty: !!d.dirty });
+    }
+    if (docs.length)
+      select(
+        docs[Math.max(0, Math.min(recovered.active || 0, docs.length - 1))],
+      );
+    status.textContent =
+      "Recovered editor draft · unsaved documents still require Save";
+  } else
+    for (const path of previousPaths) {
+      try {
+        await open(path);
+      } catch (e) {
+        c.notify(path + ": " + e.message);
+      }
+    }
   if (!docs.length) {
     const doc = { path: "", text: "", dirty: false };
     docs.push(doc);
     select(doc);
   }
+  ready = true;
+  persist();
   const unload = (e) => {
-    if (docs.some((d) => d.dirty)) {
+    if (draftPending) {
       e.preventDefault();
       e.returnValue = "";
     }
   };
   window.addEventListener("beforeunload", unload);
-  w.beforeClose = async () =>
-    !docs.some((d) => d.dirty) ||
-    (await confirmAction("Discard unsaved editor changes?"));
+  w.beforeClose = async () => {
+    if (
+      docs.some((d) => d.dirty) &&
+      !(await confirmAction("Discard unsaved editor changes?"))
+    )
+      return false;
+    clearTimeout(draftTimer);
+    closed = true;
+    await draftQueue.catch(() => {});
+    try {
+      await c.call("files.delete", { path: recoveryPath });
+    } catch (e) {
+      c.notify("The recovery draft could not be removed: " + e.message);
+    }
+    return true;
+  };
   w.cleanup = () => {
+    closed = true;
+    clearTimeout(draftTimer);
+    reconnectOff();
     window.removeEventListener("beforeunload", unload);
     view?.destroy();
   };

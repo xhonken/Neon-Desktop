@@ -96,7 +96,7 @@ export async function mount(w, c) {
         }),
       );
       note(
-        "Window restoration is separate from process survival. Closed terminal windows leave their PTYs running; use Stop process to end them. Unsaved editor text is not restored.",
+        "Disconnecting, signing out or closing a window leaves terminal and Chromium processes running. Use Server sessions to reattach even with layout recovery disabled. Stop process / End session explicitly terminates a session. Editor drafts are recovered separately; server restart or power loss cannot preserve running processes.",
       );
     } else if (section === "Menu Bar") {
       note(

@@ -2,6 +2,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "./desktop.css";
 import { el, button } from "./ui.js";
 import { WindowManager } from "./wm.js";
+import { connection, sessionPicker } from "./connection.js";
 const loaders = {
   "org.neon.files": () => import("./apps/files.js"),
   "org.neon.terminal": () => import("./apps/terminal.js"),
@@ -23,18 +24,28 @@ export async function start(identity) {
     timer,
     restoring = true;
   const notices = [];
+  const link = connection(identity, notify);
+  let pendingSave = false,
+    saveQueue = Promise.resolve();
   async function api(path, body) {
-    const r = await fetch("/api/v1/" + path, {
-      method: body ? "POST" : "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": identity.csrf,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    let r;
+    try {
+      r = await fetch("/api/v1/" + path, {
+        method: body ? "POST" : "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": identity.csrf,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(30000),
+      });
+    } catch (e) {
+      link.disconnected();
+      throw e;
+    }
     if (r.status === 401) {
-      location.reload();
-      throw Error("Session expired");
+      link.requireLogin();
+      throw Error("Sign in to reconnect. Server jobs are still running.");
     }
     const text = await r.text();
     let b;
@@ -86,17 +97,30 @@ export async function start(identity) {
     );
     if (!restoring) save();
   }
-  async function save() {
+  function save() {
+    pendingSave = true;
     clearTimeout(timer);
-    timer = setTimeout(async () => {
-      try {
-        config.windows = config.recovery === false ? [] : wm.snapshot();
-        await rpc("org.neon.settings", "config.save", { value: config });
-      } catch (e) {
-        notify(e.message);
-      }
-    }, 350);
+    timer = setTimeout(() => flush().catch(() => {}), 350);
   }
+  async function flush() {
+    clearTimeout(timer);
+    config.windows = config.recovery === false ? [] : wm.snapshot();
+    const value = JSON.parse(JSON.stringify(config));
+    const task = saveQueue
+      .catch(() => {})
+      .then(() => rpc("org.neon.settings", "config.save", { value }));
+    saveQueue = task;
+    try {
+      await task;
+      if (saveQueue === task) pendingSave = false;
+    } catch (e) {
+      pendingSave = true;
+      throw e;
+    }
+  }
+  link.onReconnect(() => {
+    if (pendingSave && !restoring) flush().catch(() => {});
+  });
   const context = {
     identity,
     apps,
@@ -109,6 +133,9 @@ export async function start(identity) {
     apply,
     open,
     renderPins,
+    flush,
+    ensureConnection: link.check,
+    onReconnect: link.onReconnect,
   };
   async function open(id, saved = {}) {
     const app = apps.get(id);
@@ -300,6 +327,12 @@ export async function start(identity) {
     right,
   );
   right.append(
+    link.badge,
+    button(
+      "Sessions",
+      () => sessionPicker(context).catch((e) => notify(e.message)),
+      "top-icon",
+    ),
     button(
       "♧",
       () =>
@@ -322,13 +355,26 @@ export async function start(identity) {
     button(
       "↪",
       async () => {
-        await api("logout", {});
-        location.reload();
+        try {
+          // Save app recovery state before revoking access. Neither action stops workers.
+          for (const w of wm.windows.values()) await w.flush?.();
+          await flush();
+          await api("logout", {});
+          link.stop();
+          for (const w of wm.windows.values()) w.cleanup();
+          location.reload();
+        } catch (e) {
+          notify(
+            "Sign out could not finish: " +
+              e.message +
+              ". Your desktop remains open.",
+          );
+        }
       },
       "top-icon",
     ),
   );
-  right.lastChild.title = "Sign out";
+  right.lastChild.title = "Sign out — keep server sessions running";
   right.lastChild.setAttribute("aria-label", "Sign out");
   document.addEventListener("pointerdown", (e) => {
     if (!menu.contains(e.target) && !e.target.closest(".launcher-toggle"))

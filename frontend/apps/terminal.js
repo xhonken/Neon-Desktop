@@ -2,6 +2,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { el, button, ask, confirmAction } from "../ui.js";
+import { reconnectingStream, sessionPicker } from "../connection.js";
 export async function mount(w, c) {
   const toolbar = el("div", { class: "toolbar" }),
     host = el("div", { class: "terminal-host" }),
@@ -26,75 +27,70 @@ export async function mount(w, c) {
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.open(host);
-  let ws,
-    id = w.state.terminal,
-    alive = false,
-    disposed = false;
-  const connect = async () => {
-    if (!id) {
-      const b = await c.call("terminal.create", {
-        kind:
-          c.app.id === "org.neon.text-browser"
-            ? "text"
-            : w.state.kind || "shell",
-        profile: w.state.profile,
-      });
-      id = b.id;
-      w.state.terminal = id;
-      c.save();
-    }
-    ws = new WebSocket(
-      `${location.origin.replace("https:", "wss:")}/api/v1/stream/terminal/${id}?app=${encodeURIComponent(c.app.id)}&csrf=${encodeURIComponent(c.identity.csrf)}`,
-    );
-    ws.binaryType = "arraybuffer";
-    ws.onopen = () => {
-      if (disposed) {
-        ws.close();
-        return;
+  let id = w.state.terminal,
+    stream;
+  if (!id) {
+    const b = await c.call("terminal.create", {
+      kind:
+        c.app.id === "org.neon.text-browser" ? "text" : w.state.kind || "shell",
+      profile: w.state.profile,
+    });
+    id = b.id;
+    w.state.terminal = id;
+    c.save();
+    await c.flush();
+  }
+  stream = reconnectingStream(c, `terminal/${id}`, {
+    async beforeConnect() {
+      const b = await c.call("terminal.list");
+      if (!b.terminals.some((t) => t.id === id)) {
+        status.textContent =
+          "This process no longer exists. The server or its worker may have restarted. Open a new terminal to start a new process.";
+        return false;
       }
+      return true;
+    },
+    open() {
+      term.reset(); // The server replays its retained tail on every attachment.
       fit.fit();
-      ws.send(
-        JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }),
-      );
+      stream.send({ type: "resize", cols: term.cols, rows: term.rows });
       status.textContent =
-        "Connected · " + c.identity.username + " · " + id.slice(0, 8);
-    };
-    ws.onmessage = (e) => {
+        "Connected · " +
+        c.identity.username +
+        " · " +
+        id.slice(0, 8) +
+        " · kept running after sign-out";
+    },
+    message(e) {
       if (e.data instanceof ArrayBuffer) term.write(new Uint8Array(e.data));
       else {
         const b = JSON.parse(e.data);
-        if ("alive" in b) {
-          alive = b.alive;
-          if (!alive)
-            status.textContent =
-              "Process ended — this terminal is not running.";
-        }
+        if (b.alive === false)
+          status.textContent =
+            "Process ended · retained output · " + id.slice(0, 8);
         if (b.error) c.notify(b.error);
       }
-    };
-    ws.onclose = () => {
-      if (!disposed)
-        status.textContent =
-          "Disconnected. Reconnect to check whether the process still exists.";
-    };
-  };
-  term.onData((data) => {
-    if (ws?.readyState === 1) ws.send(JSON.stringify({ type: "input", data }));
+    },
+    close() {
+      status.textContent = "Reconnecting to the same server session…";
+    },
+    error(e) {
+      status.textContent = "Waiting to reconnect · " + e.message;
+    },
   });
-  term.onResize(({ cols, rows }) => {
-    if (ws?.readyState === 1)
-      ws.send(JSON.stringify({ type: "resize", cols, rows }));
-  });
+  term.onData((data) => stream.send({ type: "input", data }));
+  term.onResize(({ cols, rows }) =>
+    stream.send({ type: "resize", cols, rows }),
+  );
   const observer = new ResizeObserver(() => {
     if (host.clientWidth > 0 && host.clientHeight > 0) fit.fit();
   });
   observer.observe(host);
   toolbar.append(
-    button("Reconnect", () => {
-      ws?.close();
-      term.clear();
-      connect().catch((e) => c.notify(e.message));
-    }),
+    button("Reconnect", () => stream.reconnect()),
+    button("Server sessions", () =>
+      sessionPicker(c).catch((e) => c.notify(e.message)),
+    ),
     button("Copy selection", () =>
       navigator.clipboard
         .writeText(term.getSelection())
@@ -143,10 +139,9 @@ export async function mount(w, c) {
     );
   }
   w.cleanup = () => {
-    disposed = true;
-    ws?.close();
+    stream.dispose();
     observer.disconnect();
     term.dispose();
   };
-  await connect();
+  await stream.connect();
 }

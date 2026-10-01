@@ -49,6 +49,7 @@ Open `https://YOUR_SERVER_IP/` and sign in with an existing eligible Linux accou
 - [Security and threat boundaries](docs/SECURITY.md)
 - [API and application SDK](docs/APPLICATIONS.md)
 - [Deployment and recovery](docs/DEPLOYMENT.md)
+- [Disconnect, logout and session recovery](docs/SESSION_RECOVERY.md)
 - [Status and release gates](docs/STATUS.md)
 - [Changelog](CHANGELOG.md)
 

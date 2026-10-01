@@ -850,3 +850,21 @@ button {
     display: none;
   }
 }
+
+.connection-state {
+  font-size: 0.7rem;
+  color: var(--muted);
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reconnect-login form {
+  display: grid;
+  gap: 12px;
+}
+@media (max-width: 800px) {
+  .connection-state {
+    max-width: 90px;
+  }
+}

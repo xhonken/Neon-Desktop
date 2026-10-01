@@ -13,7 +13,7 @@ This alpha is for a trusted local development network. It has not received an in
 - HOME filesystem opens use openat2 RESOLVE_BENEATH/NO_SYMLINKS/NO_MAGICLINKS/NO_XDEV. Operations are descriptor-relative. Old kernels fail closed. Single-link regular file restriction prevents hardlink aliases; FIFOs/device nodes are rejected without blocking. `.ssh` and `.gnupg` require dedicated tools/terminal.
 - Atomic same-directory file replacement, no silent overwrite for upload/copy/move. Bounded uploads and ZIP extraction; ZIP names, types, counts and expanded size prevalidated. No shell extraction or request-concatenated shell commands.
 - SSH is the system OpenSSH client in a real PTY, with interactive new-host confirmation and refusal of changed keys. Agent forwarding is off; passwords are not saved in profiles.
-- Chromium runs with its normal sandbox, under the user UID, with CDP over anonymous pipes and no debugging TCP listener. Per-user cookies/profile; dedicated memory/CPU/task limits, idle shutdown when disconnected.
+- Chromium runs with its normal sandbox, under the user UID, with CDP over anonymous pipes and no debugging TCP listener. Per-user cookies/profile; dedicated memory/CPU/task limits, explicit termination; disconnecting or signing out does not end the process.
 - Root-owned deployed code and manifests. Third-party frontend sandbox, explicit limited grants, backend enforcement and permission revocation; no third-party Python backend execution.
 
 ## Important boundaries
@@ -38,3 +38,7 @@ Workers have NoNewPrivileges and no capabilities. `RestrictSUIDSGID` is intentio
 ## Reporting
 
 Before public release, the owner must provide a real private security contact and disclosure policy. Do not publish secrets, passwords, session cookies or private file contents in issues. No fictitious contact address is supplied in this development repository.
+
+## Session retention
+
+Authentication remains expiring/revocable. Reattaching always requires a currently valid web session belonging to the same Linux UID; retention does not grant anonymous access. Reauthentication holds the current document behind a modal and binds the resume flow to the original Linux username/UID. Editor recovery files use the existing HOME API (mode0600, symlink/hardlink protections); they may contain private source text and are not public application state. Ordinary frontend-only plugins cannot keep JavaScript executing after their client document closes. See SESSION_RECOVERY.md.

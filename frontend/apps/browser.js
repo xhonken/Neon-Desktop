@@ -1,4 +1,5 @@
 import { el, button, confirmAction } from "../ui.js";
+import { reconnectingStream } from "../connection.js";
 export async function mount(w, c) {
   const toolbar = el("div", { class: "toolbar" }),
     address = el("input", {
@@ -18,9 +19,9 @@ export async function mount(w, c) {
     });
   screen.append(img);
   w.content.append(toolbar, screen, status);
-  let ws,
+  let stream,
     objectURL,
-    disposed = false;
+    stopped = false;
   const run = (fn) => async () => {
     try {
       await fn();
@@ -58,6 +59,8 @@ export async function mount(w, c) {
             "Stop Chromium? Open pages will close; your profile is retained.",
           )
         ) {
+          stopped = true;
+          stream.dispose();
           await c.call("browser.stop");
           status.textContent = "Browser session stopped";
         }
@@ -67,15 +70,23 @@ export async function mount(w, c) {
   address.onkeydown = (e) => {
     if (e.key === "Enter") run(navigate)();
   };
+  let restarted = false;
+  function rememberInstance(b) {
+    if (b.pid) {
+      if (w.state.browserPid && w.state.browserPid !== b.pid) {
+        restarted = true;
+        c.notify(
+          "The previous browser process ended. A new browser session was started.",
+        );
+      }
+      w.state.browserPid = b.pid;
+      c.save();
+    }
+  }
   const b = await c.call("browser.start");
+  rememberInstance(b);
   address.value = b.url === "about:blank" ? "" : b.url;
-  ws = new WebSocket(
-    `${location.origin.replace("https:", "wss:")}/api/v1/stream/browser/view?app=${c.app.id}&csrf=${encodeURIComponent(c.identity.csrf)}`,
-  );
-  ws.binaryType = "blob";
-  const send = (b) => {
-    if (ws?.readyState === 1) ws.send(JSON.stringify(b));
-  };
+  const send = (b) => stream?.send(b);
   let resizeTimer;
   const observer = new ResizeObserver(() => {
     clearTimeout(resizeTimer);
@@ -89,29 +100,44 @@ export async function mount(w, c) {
     }, 150);
   });
   observer.observe(screen);
-  ws.onopen = () => {
-    send({
-      type: "resize",
-      width: screen.clientWidth,
-      height: screen.clientHeight,
-    });
-    status.textContent = "Chromium · private Linux user profile";
-  };
-  ws.onmessage = (e) => {
-    if (e.data instanceof Blob) {
-      const old = objectURL;
-      objectURL = URL.createObjectURL(e.data);
-      img.src = objectURL;
-      if (old) URL.revokeObjectURL(old);
-    } else {
-      const b = JSON.parse(e.data);
-      if (b.error) c.notify(b.error);
-    }
-  };
-  ws.onclose = () => {
-    if (!disposed)
-      status.textContent = "Browser disconnected. Reopen the app to reconnect.";
-  };
+  stream = reconnectingStream(c, "browser/view", {
+    binaryType: "blob",
+    async beforeConnect() {
+      if (stopped) return false;
+      const b = await c.call("browser.info");
+      rememberInstance(b);
+      address.value = b.url === "about:blank" ? "" : b.url;
+      return true;
+    },
+    open() {
+      send({
+        type: "resize",
+        width: screen.clientWidth,
+        height: screen.clientHeight,
+      });
+      status.textContent = restarted
+        ? "New browser process · previous session ended"
+        : "Chromium · kept running after sign-out";
+    },
+    message(e) {
+      if (e.data instanceof Blob) {
+        const old = objectURL;
+        objectURL = URL.createObjectURL(e.data);
+        img.src = objectURL;
+        if (old) URL.revokeObjectURL(old);
+      } else {
+        const b = JSON.parse(e.data);
+        if (b.error) c.notify(b.error);
+      }
+    },
+    close() {
+      status.textContent = "Reconnecting to your server browser…";
+    },
+    error(e) {
+      status.textContent = "Waiting to reconnect · " + e.message;
+    },
+  });
+  await stream.connect();
   const pointer = (e, event) => {
     e.preventDefault();
     screen.focus();
@@ -163,10 +189,9 @@ export async function mount(w, c) {
     send({ type: "text", text: e.clipboardData.getData("text") });
   };
   w.cleanup = () => {
-    disposed = true;
     clearTimeout(resizeTimer);
     observer.disconnect();
-    ws?.close();
+    stream.dispose();
     if (objectURL) URL.revokeObjectURL(objectURL);
   };
 }

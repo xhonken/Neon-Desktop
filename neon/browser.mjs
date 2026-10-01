@@ -25,7 +25,6 @@ const browser = await puppeteer.launch({
 });
 const page = (await browser.pages())[0] || (await browser.newPage());
 const client = await page.createCDPSession();
-let last = Date.now();
 const peers = new Set();
 let stopping = false;
 function url(value) {
@@ -46,7 +45,6 @@ const server = http.createServer(async (req, res) => {
       if (raw.length > 65536) throw Error("Request too large");
     }
     const b = JSON.parse(raw);
-    last = Date.now();
     let result = { ok: true };
     if (b.action === "browser.navigate")
       await page
@@ -68,7 +66,7 @@ const server = http.createServer(async (req, res) => {
       throw Error("Unknown action");
     res
       .writeHead(200, { "Content-Type": "application/json" })
-      .end(JSON.stringify({ ...result, url: page.url() }));
+      .end(JSON.stringify({ ...result, url: page.url(), pid: process.pid }));
   } catch (e) {
     res
       .writeHead(400, { "Content-Type": "application/json" })
@@ -78,12 +76,10 @@ const server = http.createServer(async (req, res) => {
 const wss = new WebSocketServer({ server, maxPayload: 65536 });
 wss.on("connection", (ws) => {
   peers.add(ws);
-  last = Date.now();
   ws.on("close", () => peers.delete(ws));
   ws.on("message", async (raw) => {
     try {
       const b = JSON.parse(raw);
-      last = Date.now();
       if (b.type === "resize")
         await page.setViewport({
           width: Math.max(320, Math.min(1600, Number(b.width) || 1100)),
@@ -116,11 +112,6 @@ wss.on("connection", (ws) => {
 let capture = false;
 setInterval(async () => {
   if (stopping || capture) return;
-  if (Date.now() - last > 20 * 60 * 1000 && peers.size === 0) {
-    stopping = true;
-    await browser.close();
-    process.exit(0);
-  }
   if (!peers.size) return;
   capture = true;
   try {
