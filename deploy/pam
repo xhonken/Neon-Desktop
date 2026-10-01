@@ -1,0 +1,4 @@
+# Root and service-account rejection is also enforced in the broker.
+auth requisite pam_succeed_if.so uid >= 1000 quiet
+@include common-auth
+@include common-account

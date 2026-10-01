@@ -1,0 +1,17 @@
+{
+  "id": "org.neon.applications",
+  "name": "Applications",
+  "version": "0.1.0-alpha.1",
+  "category": "system",
+  "pinnable": true,
+  "runtime": "core",
+  "icon": "\u25c8",
+  "window": {
+    "width": 820,
+    "height": 580,
+    "minWidth": 350,
+    "minHeight": 250,
+    "resizable": true
+  },
+  "permissions": []
+}

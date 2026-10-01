@@ -1,0 +1,19 @@
+{
+  "id": "org.neon.code",
+  "name": "Code",
+  "version": "0.1.0-alpha.1",
+  "category": "development",
+  "pinnable": true,
+  "runtime": "core",
+  "icon": "</>",
+  "window": {
+    "width": 1060,
+    "height": 670,
+    "minWidth": 350,
+    "minHeight": 250,
+    "resizable": true
+  },
+  "permissions": [
+    "user-files"
+  ]
+}

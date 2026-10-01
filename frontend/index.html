@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Sign in</title>
+    <link rel="stylesheet" href="/assets/login.css" />
+  </head>
+  <body>
+    <main id="root">
+      <form id="login" autocomplete="on">
+        <label for="username">Username</label
+        ><input
+          id="username"
+          name="username"
+          autocomplete="username"
+          required
+          maxlength="32"
+          autofocus
+        /><label for="password">Password</label
+        ><input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          maxlength="1024"
+        /><button type="submit">
+          SIGN IN <span aria-hidden="true">↗</span>
+        </button>
+        <p id="login-error" role="alert"></p>
+      </form>
+    </main>
+    <script type="module" src="/assets/login.js"></script>
+  </body>
+</html>

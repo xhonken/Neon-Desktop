@@ -1,0 +1,30 @@
+[Unit]
+Description=Neon Desktop authentication and user-session broker
+After=network.target
+[Service]
+Type=simple
+User=root
+UMask=0077
+WorkingDirectory=/opt/neon-desktop
+ExecStart=/usr/bin/python3 -m neon.broker
+Restart=on-failure
+RuntimeDirectory=neon-broker
+RuntimeDirectoryMode=0755
+StateDirectory=neon-broker
+StateDirectoryMode=0700
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX
+MemoryMax=256M
+TasksMax=40
+ReadWritePaths=/run/neon-broker /var/lib/neon-broker
+[Install]
+WantedBy=multi-user.target

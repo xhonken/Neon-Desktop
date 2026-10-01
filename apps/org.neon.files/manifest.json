@@ -1,0 +1,19 @@
+{
+  "id": "org.neon.files",
+  "name": "Files",
+  "version": "0.1.0-alpha.1",
+  "category": "files",
+  "pinnable": true,
+  "runtime": "core",
+  "icon": "\u25a4",
+  "window": {
+    "width": 900,
+    "height": 580,
+    "minWidth": 350,
+    "minHeight": 250,
+    "resizable": true
+  },
+  "permissions": [
+    "user-files"
+  ]
+}

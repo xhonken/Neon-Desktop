@@ -1,0 +1,29 @@
+[Unit]
+Description=Neon Desktop unprivileged web gateway
+Requires=neon-broker.service
+After=neon-broker.service
+[Service]
+User=neon-gateway
+Group=neon-gateway
+UMask=0077
+WorkingDirectory=/opt/neon-desktop
+EnvironmentFile=/etc/neon-desktop/environment
+ExecStart=/usr/bin/python3 -m neon.gateway
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=256M
+TasksMax=32
+[Install]
+WantedBy=multi-user.target

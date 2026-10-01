@@ -1,0 +1,29 @@
+body {
+  font-family: system-ui;
+  margin: 30px;
+  background: var(--background, #0c151b);
+  color: var(--foreground, #dce6eb);
+}
+h1 {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--accent, #65e6ad);
+}
+p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #9daeb8;
+}
+button {
+  background: var(--accent, #65e6ad);
+  color: #0c151b;
+  border: 0;
+  padding: 10px 16px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+output {
+  display: block;
+  margin-top: 15px;
+  font-size: 12px;
+}

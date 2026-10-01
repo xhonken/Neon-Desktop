@@ -1,0 +1,20 @@
+{
+  "id": "org.neon.settings",
+  "name": "Settings",
+  "version": "0.1.0-alpha.1",
+  "category": "system",
+  "pinnable": true,
+  "runtime": "core",
+  "icon": "\u2699",
+  "window": {
+    "width": 940,
+    "height": 650,
+    "minWidth": 350,
+    "minHeight": 250,
+    "resizable": true
+  },
+  "permissions": [
+    "system-information",
+    "user-files"
+  ]
+}

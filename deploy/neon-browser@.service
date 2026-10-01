@@ -1,0 +1,28 @@
+[Unit]
+Description=Neon Desktop sandboxed Chromium for Linux user %i
+After=network.target
+[Service]
+User=%i
+UMask=0077
+WorkingDirectory=/opt/neon-desktop
+ExecStart=/usr/bin/node /opt/neon-desktop/neon/browser.mjs
+RuntimeDirectory=neon-browser-%i
+RuntimeDirectoryMode=0700
+KillMode=control-group
+TimeoutStopSec=20
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/home
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+MemoryHigh=1G
+MemoryMax=1536M
+MemorySwapMax=256M
+TasksMax=160
+CPUQuota=150%

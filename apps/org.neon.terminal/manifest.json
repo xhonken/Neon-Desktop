@@ -1,0 +1,20 @@
+{
+  "id": "org.neon.terminal",
+  "name": "Terminal",
+  "version": "0.1.0-alpha.1",
+  "category": "development",
+  "pinnable": true,
+  "runtime": "core",
+  "icon": ">_",
+  "window": {
+    "width": 850,
+    "height": 540,
+    "minWidth": 350,
+    "minHeight": 250,
+    "resizable": true
+  },
+  "permissions": [
+    "terminal",
+    "ssh"
+  ]
+}

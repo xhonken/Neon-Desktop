@@ -1,0 +1,17 @@
+{
+  "id": "org.example.hello",
+  "name": "SDK Example",
+  "version": "0.1.0",
+  "category": "development",
+  "runtime": "sandbox",
+  "pinnable": true,
+  "icon": "◇",
+  "window": {
+    "width": 550,
+    "height": 350,
+    "minWidth": 350,
+    "minHeight": 250,
+    "resizable": true
+  },
+  "permissions": ["notifications"]
+}

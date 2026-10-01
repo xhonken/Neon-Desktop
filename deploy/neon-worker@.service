@@ -1,0 +1,28 @@
+[Unit]
+Description=Neon Desktop Linux user worker %i
+After=network.target
+[Service]
+User=%i
+UMask=0077
+WorkingDirectory=/opt/neon-desktop
+ExecStart=/usr/bin/python3 -m neon.worker
+RuntimeDirectory=neon-worker-%i
+RuntimeDirectoryMode=0700
+KillMode=control-group
+TimeoutStopSec=15
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/home
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+# openat2 must remain available; NoNewPrivileges prevents setuid escalation.
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+MemoryHigh=1G
+MemoryMax=2G
+MemorySwapMax=256M
+TasksMax=128
+CPUQuota=200%

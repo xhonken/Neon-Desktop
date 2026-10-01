@@ -1,0 +1,19 @@
+{
+  "id": "org.neon.browser",
+  "name": "Browser",
+  "version": "0.1.0-alpha.1",
+  "category": "internet",
+  "pinnable": true,
+  "runtime": "core",
+  "icon": "\u25ce",
+  "window": {
+    "width": 1100,
+    "height": 760,
+    "minWidth": 350,
+    "minHeight": 250,
+    "resizable": true
+  },
+  "permissions": [
+    "network"
+  ]
+}
