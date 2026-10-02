@@ -18,7 +18,7 @@ The SSH connection originates on the Pi. Losing the connection between the clien
 
 ## Terminal history and discovery
 
-Sessions lists retained terminal IDs and whether their shell/SSH client is still running. Reattaching uses the existing ID and does not launch another shell. Terminal input is not buffered/replayed automatically while disconnected, avoiding duplicate commands. The worker retains the most recent 256 KiB of terminal output per session, not an unlimited durable job log. Up to eight live terminals and a bounded recent-ended history are retained per worker. Write long job logs to a file when the complete output matters.
+Sessions lists only running terminal/SSH sessions, with a direct Stop button per row. Successfully stopped sessions disappear immediately; the open list refreshes every two seconds to remove sessions that ended elsewhere. Jobs & Sessions also hides ended terminals. Closing the picker stops its refresh timer. Reattaching uses the existing ID and does not launch another shell. Terminal input is not buffered/replayed automatically while disconnected, avoiding duplicate commands. The worker retains the most recent 256 KiB of terminal output per session, not an unlimited durable job log. Up to eight live terminals and a bounded recent-ended history are retained per worker. Write long job logs to a file when the complete output matters.
 
 Disabling saved window layout recovery does not stop or hide the server session registry. A foreground job finishing can return to its existing shell; the session will still be listed as running because its shell remains alive. Read its output or job log to determine job completion.
 

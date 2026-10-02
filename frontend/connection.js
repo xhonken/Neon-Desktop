@@ -227,38 +227,137 @@ export function reconnectingStream(c, path, handlers) {
 export async function sessionPicker(c) {
   const { terminals } = await c.rpc("org.neon.terminal", "terminal.list");
   const d = el("dialog", { class: "neon-dialog session-picker" });
-  d.append(
-    el("h3", { text: "Server sessions" }),
-    el("p", {
-      text: "These terminals stay on the server when you disconnect or sign out. Closing a window only detaches it.",
-    }),
-  );
-  if (!terminals.length)
-    d.append(el("p", { text: "No retained terminal sessions." }));
-  for (const t of terminals) {
-    const existing = [...c.wm.windows.values()].find(
-      (w) => w.state.terminal === t.id,
-    );
-    d.append(
-      button(
-        `${t.alive ? "Running" : "Ended"} · ${t.id.slice(-8)}${existing ? " · open window" : ""}`,
-        async () => {
-          d.close();
-          d.remove();
-          if (existing) c.wm.focus(existing);
-          else await c.open("org.neon.terminal", { state: { terminal: t.id } });
-        },
-        "btn btn-neon d-block mb-2",
-      ),
-    );
+  const list = el("div", { class: "session-list" });
+  const empty = el("p", { text: "No running terminal sessions." });
+  const error = el("p", { role: "status", class: "text-warning" });
+  const rows = new Map(),
+    stopped = new Set();
+  let timer,
+    disposed = false,
+    refreshing = false;
+  function close() {
+    disposed = true;
+    clearTimeout(timer);
+    d.close();
+    d.remove();
   }
+  function render(terminals) {
+    const active = terminals.filter((t) => t.alive && !stopped.has(t.id));
+    const ids = new Set(active.map((t) => t.id));
+    for (const [id, row] of rows) {
+      if (!ids.has(id)) {
+        const focused = row.node.contains(document.activeElement);
+        row.node.remove();
+        rows.delete(id);
+        if (focused) closeButton.focus();
+      }
+    }
+    for (const t of active) {
+      let row = rows.get(t.id);
+      if (!row) {
+        const open = button(
+          "",
+          async () => {
+            const existing = [...c.wm.windows.values()].find(
+              (w) => w.state.terminal === t.id,
+            );
+            close();
+            try {
+              if (existing) c.wm.focus(existing);
+              else
+                await c.open("org.neon.terminal", {
+                  state: { terminal: t.id },
+                });
+            } catch (e) {
+              c.notify(e.message);
+            }
+          },
+          "btn btn-neon session-open",
+        );
+        const stop = button(
+          "Stop",
+          async () => {
+            stop.disabled = true;
+            open.disabled = true;
+            stop.textContent = "Stopping…";
+            try {
+              await c.rpc("org.neon.terminal", "terminal.stop", { id: t.id });
+              stopped.add(t.id);
+              if (!disposed) {
+                render([...rows.values()].map((r) => r.terminal));
+                error.textContent = "";
+              }
+            } catch (e) {
+              if (!disposed)
+                error.textContent = "Could not stop session: " + e.message;
+            } finally {
+              stop.disabled = false;
+              open.disabled = false;
+              stop.textContent = "Stop";
+            }
+          },
+          "btn btn-sm btn-outline-danger",
+        );
+        const node = el(
+          "div",
+          { class: "session-row", "data-session-id": t.id },
+          open,
+          stop,
+        );
+        row = { node, open, stop };
+        rows.set(t.id, row);
+        list.append(node);
+      }
+      row.terminal = t;
+      const name = `${t.name || "Terminal"} · ${t.host || "Local"} · ${t.id.slice(-8)}`;
+      row.open.textContent = name;
+      row.open.title = "Open running session";
+      row.stop.setAttribute("aria-label", "Stop " + name);
+      row.stop.title = "End this terminal session and its shell";
+    }
+    empty.hidden = active.length > 0;
+  }
+  async function refresh() {
+    if (disposed || refreshing) return;
+    refreshing = true;
+    try {
+      const { terminals } = await c.rpc("org.neon.terminal", "terminal.list", {
+        background: true,
+      });
+      if (!disposed) {
+        render(terminals);
+        error.textContent = "";
+      }
+    } catch (e) {
+      if (!disposed)
+        error.textContent = "Could not refresh sessions: " + e.message;
+    } finally {
+      refreshing = false;
+      if (!disposed) timer = setTimeout(refresh, 2000);
+    }
+  }
+  const closeButton = button("Close", close);
   d.append(
-    button("Close", () => {
-      d.close();
-      d.remove();
+    el("h3", { text: "Running sessions" }),
+    el("p", {
+      text: "Open a session to reconnect. Closing a window keeps it running. Stop ends the selected terminal session and its shell.",
     }),
+    list,
+    empty,
+    error,
+    closeButton,
   );
-  d.addEventListener("cancel", () => d.remove());
+  render(terminals);
+  d.addEventListener("cancel", (e) => {
+    e.preventDefault();
+    close();
+  });
+  d.addEventListener("close", () => {
+    disposed = true;
+    clearTimeout(timer);
+    d.remove();
+  });
   document.body.append(d);
   d.showModal();
+  timer = setTimeout(refresh, 2000);
 }

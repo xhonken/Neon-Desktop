@@ -955,3 +955,20 @@ button {
   padding: 2rem;
   grid-column: 1 / -1;
 }
+
+.session-list {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.session-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.session-open {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}

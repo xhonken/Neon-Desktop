@@ -142,7 +142,7 @@ export async function mount(w, c) {
           el("p", { class: "muted", text: "No background jobs yet" }),
         );
       list.append(el("h3", { class: "h6 mt-4", text: "TERMINAL SESSIONS" }));
-      for (const t of sessions.terminals) {
+      for (const t of sessions.terminals.filter((t) => t.alive)) {
         list.append(
           button(
             `${t.name || "Terminal"} · ${t.alive ? "running" : "ended"}`,
@@ -184,6 +184,7 @@ export async function mount(w, c) {
                         )
                       ) {
                         await c.call("terminal.stop", { id: t.id });
+                        detail.replaceChildren();
                         await refresh();
                       }
                     }),
