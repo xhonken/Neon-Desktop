@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 export function el(tag, attrs = {}, ...children) {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
@@ -70,11 +71,11 @@ export async function ask(title, initial = "") {
       el(
         "div",
         { class: "dialog-actions" },
-        button("Cancel", () => finish(null)),
+        button(t("Cancel"), () => finish(null)),
         el("button", {
           type: "submit",
           class: "btn btn-primary",
-          text: "Continue",
+          text: t("Continue"),
         }),
       ),
     );
@@ -99,13 +100,13 @@ export async function confirmAction(message) {
       resolve(v);
     };
     d.append(
-      el("h3", { text: "Confirm" }),
+      el("h3", { text: t("Confirm") }),
       el("p", { text: message }),
       el(
         "div",
         { class: "dialog-actions" },
-        button("Cancel", () => finish(false)),
-        button("Continue", () => finish(true), "btn btn-danger"),
+        button(t("Cancel"), () => finish(false)),
+        button(t("Continue"), () => finish(true), "btn btn-danger"),
       ),
     );
     document.body.append(d);

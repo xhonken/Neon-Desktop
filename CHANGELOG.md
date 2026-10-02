@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased — sessions and shared Bash theme
+## 0.1.0-alpha.6 — unreleased
+
+Adds host identity/accent, named terminal/taskbar titles, Ctrl+K search across apps/windows/SSH/sessions, desktop context menu, descriptor-based Open terminal here, actionable notification center, Swedish/English desktop chrome and responsive keyboard-focused polish. Hardens credential-state revocation, authentication core dumps and login request limits; pins patched aiohttp and provides TLS1.3-only dedicated-host configuration. See docs/DESKTOP_FOUNDATION.md and docs/SECURITY_REVIEW.md.
 
 Sessions now shows only running terminal/SSH sessions, with a direct Stop button per row and automatic refresh while open. Ended terminals also disappear from Jobs & Sessions; ending a terminal session now closes its open windows and removes their taskbar/saved-layout entries, including views on other connected devices. Temporary disconnection still preserves windows and processes.
 

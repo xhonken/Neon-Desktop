@@ -42,6 +42,9 @@ if tuple(map(int, version.lstrip("v").split(".")[:2])) < (22, 12):
         "Install supported Node LTS >=22.12 (recommended24), then pass --node /absolute/path/to/node"
     )
 origin = args.origin.rstrip("/")
+if not Path("/opt/neon-python-3.14.3/bin/python").exists():
+    raise SystemExit("First run: sudo python3 scripts/install-python-runtime.py")
+
 source = Path(__file__).resolve().parents[1]
 target = Path("/opt/neon-desktop")
 if not (source / "dist/index.html").exists():
@@ -164,7 +167,9 @@ caddy.write_text(
 """
     + origin
     + """ {
-    tls internal
+    tls internal {
+        protocols tls1.3
+    }
     header {
         -Server
         Strict-Transport-Security "max-age=31536000"
@@ -173,6 +178,12 @@ caddy.write_text(
         header_up X-Forwarded-For {remote_host}
         header_down -Server
     }
+}
+""" + f":{u.port or 443}" + """ {
+    tls internal {
+        protocols tls1.3
+    }
+    respond 404
 }
 """
 )

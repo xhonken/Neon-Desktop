@@ -1,5 +1,7 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./desktop.css";
+import { foundation } from "./foundation.js";
+import { t, setLanguage } from "./i18n.js";
 import { createWallpaper } from "./wallpaper.js";
 import { el, button } from "./ui.js";
 import { WindowManager } from "./wm.js";
@@ -26,7 +28,7 @@ export async function start(identity) {
   let config = {},
     timer,
     restoring = true;
-  const notices = [];
+  let desktopTools;
   const storageKey = "neon-device-" + identity.uid;
   let device = localStorage.getItem(storageKey);
   if (!/^[a-f0-9-]{36}$/.test(device || "")) {
@@ -74,11 +76,12 @@ export async function start(identity) {
   const rpc = (app, action, args = {}) =>
     api("rpc", { device, client, ...args, app, action });
   config = await rpc("org.neon.settings", "config.get");
+  setLanguage(config.language || "en");
   config.pins ??= [];
   config.shortcuts ??= [];
   const toastArea = el("div", { class: "toast-area", "aria-live": "polite" });
-  function notify(message) {
-    notices.unshift({ message, time: new Date() });
+  function notify(message, options = {}) {
+    desktopTools?.notify(message, options);
     const t = el("div", { class: "neon-toast", text: message });
     toastArea.append(t);
     setTimeout(() => t.remove(), 5500);
@@ -103,7 +106,7 @@ export async function start(identity) {
     tasks.replaceChildren(
       ...[...wm.windows.values()].map((w) =>
         button(
-          w.app.icon + " " + w.app.name,
+          w.app.icon + " " + (w.title || w.app.name),
           () => wm.focus(w),
           w.minimized ? "task minimized" : "task",
         ),
@@ -151,6 +154,7 @@ export async function start(identity) {
     apply,
     open,
     renderPins,
+    renderShortcuts,
     refreshApps,
     closeApp: async (id) => {
       for (const w of [...wm.windows.values()])
@@ -316,6 +320,12 @@ export async function start(identity) {
   );
   function renderApps() {
     listing.replaceChildren();
+    if (
+      ![...apps.values()].some((a) =>
+        a.name.toLowerCase().includes(search.value.toLowerCase()),
+      )
+    )
+      listing.append(el("p", { text: t("No applications found") }));
     for (const category of [
       ...new Set([...apps.values()].map((a) => a.category)),
     ]) {
@@ -368,19 +378,6 @@ export async function start(identity) {
       "top-icon",
     ),
     button(
-      "♧",
-      () =>
-        notify(
-          notices.length
-            ? notices
-                .slice(0, 3)
-                .map((n) => n.message)
-                .join(" · ")
-            : "No notifications",
-        ),
-      "top-icon",
-    ),
-    button(
       identity.username,
       () => open("org.neon.settings", { state: { section: "Account" } }),
       "user-menu",
@@ -395,6 +392,7 @@ export async function start(identity) {
           await flush();
           await api("logout", {});
           link.stop();
+          desktopTools.stop();
           for (const w of wm.windows.values()) w.cleanup();
           location.reload();
         } catch (e) {
@@ -408,6 +406,9 @@ export async function start(identity) {
       "top-icon",
     ),
   );
+  for (const b of right.querySelectorAll("button"))
+    if (["Jobs", "Sessions"].includes(b.textContent))
+      b.dataset.i18n = b.textContent;
   right.lastChild.title = "Sign out — keep server sessions running";
   right.lastChild.setAttribute("aria-label", "Sign out");
   document.addEventListener("pointerdown", (e) => {
@@ -417,10 +418,21 @@ export async function start(identity) {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") menu.hidden = true;
   });
+  desktopTools = foundation(context, host, top, right);
   function apply() {
+    setLanguage(config.language || "en");
+    desktopTools?.labels();
+    document
+      .querySelectorAll("[data-i18n]")
+      .forEach((e) => (e.textContent = t(e.dataset.i18n)));
+    top.querySelector(".launcher-toggle").textContent =
+      "◈  " + t("Applications");
     wallpaper.update();
     const style = document.documentElement.style;
-    style.setProperty("--accent", config.accent || "#65e6ad");
+    style.setProperty(
+      "--accent",
+      config.accent || desktopTools?.defaultAccent || "#65e6ad",
+    );
     style.setProperty("--ui-scale", String(config.scale || 1));
     style.setProperty("--glass-blur", config.blur === false ? "0px" : "14px");
     document.body.classList.toggle("reduce-motion", !!config.reducedMotion);

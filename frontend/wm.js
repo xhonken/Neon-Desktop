@@ -73,6 +73,7 @@ export class WindowManager {
       minimized: false,
       maximized: false,
       state: saved.state || {},
+      title: app.name,
       cleanup: () => {},
       beforeClose: null,
     };
@@ -194,6 +195,35 @@ export class WindowManager {
       w.maximized = true;
     }
     this.paint(w);
+    this.onchange();
+  }
+  setTitle(w, title) {
+    if (!this.windows.has(w.id)) return;
+    if (w.title === String(title).slice(0, 160)) return;
+    w.title = String(title).slice(0, 160);
+    w.node.querySelector(".window-caption").textContent = w.title;
+    this.onchange();
+  }
+  arrange() {
+    const windows = [...this.windows.values()].filter((w) => !w.minimized),
+      b = this.bounds();
+    const columns = b.w < 700 ? 1 : Math.ceil(Math.sqrt(windows.length));
+    const rows = Math.ceil(windows.length / columns);
+    windows.forEach((w, i) => {
+      w.maximized = false;
+      w.restore = null;
+      w.g = constrain(
+        {
+          x: ((i % columns) * b.w) / columns,
+          y: (Math.floor(i / columns) * b.h) / rows,
+          w: b.w / columns,
+          h: b.h / rows,
+        },
+        b,
+        w.min,
+      );
+      this.paint(w);
+    });
     this.onchange();
   }
   async close(w) {

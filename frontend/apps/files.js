@@ -1,3 +1,4 @@
+import { t } from "../i18n.js";
 import {
   el,
   button,
@@ -49,6 +50,7 @@ export async function mount(w, c) {
     selected.clear();
     input.value = path;
     w.state.path = path;
+    c.wm.setTitle(w, "Files · " + (path === "." ? "Home" : path));
     c.save();
     render();
   }
@@ -90,6 +92,42 @@ export async function mount(w, c) {
           } catch (err) {
             c.notify(err.message);
           }
+        };
+        row.oncontextmenu = (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          document.querySelector(".file-context")?.remove();
+          const menu = el("div", { class: "app-context file-context" });
+          menu.append(
+            button(
+              t("Open terminal here"),
+              () => {
+                menu.remove();
+                terminalHere(e.directory ? join(e.name) : path).catch((err) =>
+                  c.notify(err.message),
+                );
+              },
+              "context-item",
+            ),
+          );
+          document.body.append(menu);
+          menu.style.left =
+            Math.max(
+              0,
+              Math.min(event.clientX, innerWidth - menu.offsetWidth),
+            ) + "px";
+          menu.style.top =
+            Math.max(
+              0,
+              Math.min(event.clientY, innerHeight - menu.offsetHeight),
+            ) + "px";
+          const dismiss = (v) => {
+            if (!menu.contains(v.target)) {
+              menu.remove();
+              document.removeEventListener("pointerdown", dismiss);
+            }
+          };
+          document.addEventListener("pointerdown", dismiss);
         };
         row.ondblclick = open;
         row.onkeydown = (v) => {
@@ -149,7 +187,14 @@ export async function mount(w, c) {
       })();
   };
   const actions = el("div", { class: "toolbar" });
+  function terminalHere(target = path) {
+    return c.open("org.neon.terminal", { state: { cwd: target } });
+  }
   actions.append(
+    button(
+      t("Open terminal here"),
+      run(() => terminalHere()),
+    ),
     button(
       "New file",
       run(async () => {
@@ -285,8 +330,12 @@ export async function mount(w, c) {
         });
       }
       await refresh();
+      const target = path;
+      c.notify("Upload complete · " + files.length + " file(s)", {
+        action: () => c.open("org.neon.files", { state: { path: target } }),
+      });
     } catch (e) {
-      c.notify(e.message);
+      c.notify(e.message, { level: "error" });
     }
   }
   w.content.ondragover = (e) => e.preventDefault();

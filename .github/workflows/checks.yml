@@ -9,8 +9,8 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - run: sudo apt-get update && sudo apt-get install -y python3-aiohttp
+      - run: python3 -m venv .venv && .venv/bin/pip install -r deploy/python-runtime.txt
       - run: npm ci
       - run: npm run build && npm test
-      - run: /usr/bin/python3 -m unittest discover -s tests -v
+      - run: .venv/bin/python -m unittest discover -s tests -v
       - run: python3 scripts/package.py

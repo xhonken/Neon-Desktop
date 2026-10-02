@@ -1,4 +1,4 @@
-# Implementation status — 0.1.0-alpha.5
+# Implementation status — 0.1.0-alpha.6
 
 This is a working first alpha, not completion of the full project plan. The confirmed product name is Neon Desktop. It is independently implemented; no Pi-2000 source or migration layer is included.
 
@@ -21,7 +21,7 @@ The following were verified on a Raspberry Pi 5, 8 GB, ARM64, Debian 13 / Raspbe
 | Applications | Nine core apps including App Center; Git catalog, personal and global stores, sandbox SDK and revision-bound grants | Actual HTTPS Git/PAM/GUI install, update, uninstall; two-user visibility/ownership, stale asset/grant rejection; real catalog intentionally empty |
 | Deployment | Caddy, systemd units, PAM policy, installer, source package tool and CI definition | Real host reboot, automatic gateway/broker startup, verified TLS from another LAN host |
 
-Automated baseline: **28 Python tests and 6 JavaScript tests pass**. Both installed graphical suites and the disposable second-account isolation suite pass. The installed Node runtime is 24.21.0; Puppeteer is pinned to 25.12.0. npm audit reported zero known vulnerabilities at verification time; this is a time-specific dependency check, not a security certification. GitHub Actions has not run remotely because this repository has not been published.
+Automated baseline: **34 Python tests and 6 JavaScript tests pass**. Both installed graphical suites and the disposable second-account isolation suite pass. The installed Node runtime is 24.21.0; Puppeteer is pinned to 25.12.0. npm audit reported zero known vulnerabilities at verification time; this is a time-specific dependency check, not a security certification. GitHub Actions has not run remotely because this repository has not been published.
 
 On Raspberry Pi OS the memory cgroup controller had to be enabled in the boot command line and verified after a real reboot. The installer and broker now fail closed if it is unavailable. Actual browser limits: 1 GiB memory.high, 1.5 GiB memory.max, 256 MiB memory.swap.max, 150% CPU and 160 tasks. A live 13-process Chromium session ran as the intended UID with renderer seccomp and no OOM events during the recorded check.
 
@@ -81,3 +81,10 @@ Installed HTTPS/PAM acceptance passed with the owner and a disposable account: p
 Stopping a terminal session through Sessions, Jobs & Sessions or the terminal toolbar now closes its desktop views, including minimized windows, and removes taskbar/saved-layout entries. Server end notifications also close views on other connected devices and on natural shell exit. Reconnection to a known ended session closes its stale view; a transport failure alone preserves the window, and missing-worker diagnostics remain explicit. Closing a window with X still only detaches its live session.
 
 Installed HTTPS/PAM acceptance with a disposable account passed: visible and minimized views across two device layouts, Sessions Stop, toolbar Stop, taskbar/layout removal, X detach and same-session reattach, natural exit, offline preservation followed by stop from another device and reconnect cleanup, and reload without ended-window recovery. Actual UID and terminated process absence in /proc were verified; no JavaScript errors. All 28 Python and 6 JavaScript tests and the frontend build passed. The process-preserving updater retained the owner's running worker and terminal.
+
+
+## Desktop foundations and login hardening (alpha.6)
+
+Six desktop improvements are implemented: host identity/default accent, named terminal/taskbar titles, keyboard quick-open across apps/windows/SSH/sessions, desktop context menu and terminal-in-directory, actionable bounded notification center, and responsive/focus/language polish. See DESKTOP_FOUNDATION.md for exact scope, including the initial Swedish/English chrome boundary. Installed disposable-account GUI checks cover hostname, Ctrl+K, renaming, shortcuts/context menus, real directory PTY with spaces, language switch, upload notification and small-screen menu bounds. Browser inspection identified and fixed menu-height overlap on small screens.
+
+The security review reproduced and fixed stale web access after Linux lock/password change, disabled authentication core dumps, bounded unauthenticated login bodies and deployed a patched pinned aiohttp runtime. TLS1.3-only behavior was verified with and without SNI; the Caddy catch-all policy closes the IP/no-SNI gap. Installed tests verify account revocation, request limits and all earlier two-account isolation/CSRF/Origin/socket/permission controls. See SECURITY_REVIEW.md for evidence, dependency advisories and remaining limits. Existing active user worker/terminal/browser processes are preserved except for any separately approved browser restart. This is not an independent security certification.

@@ -4,7 +4,7 @@ Primary target: Raspberry Pi 5 / Debian 13 ARM64. Other Debian platforms require
 
 Build as an ordinary development user with `npm ci && npm run build`. Run automated tests before installation. Public release source must include the lockfile, tests, deployment units and documentation; exclude generated private state.
 
-The installer targets `/opt/neon-desktop`, creates a locked service account `neon-gateway`, installs four unit definitions and a PAM service, and configures a dedicated Caddy origin. Installed code is root-owned. Site origin is not embedded into the source repository. Python dependencies come from Debian repositories. Third-party JavaScript dependencies and their licenses are retained in the release installation.
+The installer targets `/opt/neon-desktop`, creates a locked service account `neon-gateway`, installs four unit definitions and a PAM service, and configures a dedicated Caddy origin. Installed code is root-owned. Site origin is not embedded into the source repository. Install the pinned, root-owned Python runtime first with `sudo python3 scripts/install-python-runtime.py`. It uses `deploy/python-runtime.txt` in an isolated environment; system Python remains distribution-managed. Third-party JavaScript dependencies and their licenses are retained in the release installation.
 
 ## Services
 
@@ -27,7 +27,7 @@ The installer does not overwrite the firewall. Add LAN-scoped TCP 443, optionall
 ```sh
 systemctl status neon-broker neon-gateway caddy
 systemctl --failed
-python3 -m unittest discover -s tests -v
+/opt/neon-python-3.14.3/bin/python -m unittest discover -s tests -v
 npm test
 ```
 
@@ -35,7 +35,7 @@ npm test
 
 ## Updating
 
-The first installer intentionally refuses an existing installation. Until atomic versioned updates and a worker drain mechanism are complete, review updates during a maintenance window. Preserve `/etc/neon-desktop`, user configs/profiles, and `/var/lib/neon-broker`; do not copy these into release archives. Gateway/broker restarts disconnect streams but do not kill worker PTYs. Worker/browser restarts terminate their processes; obtain authorization for active jobs first.
+The first installer intentionally refuses an existing installation. Use the immutable updater described in [UPDATES.md](UPDATES.md); review changes before deployment. Preserve `/etc/neon-desktop`, user configs/profiles, and `/var/lib/neon-broker`; do not copy these into release archives. Gateway/broker restarts disconnect streams but do not kill worker PTYs. Worker/browser restarts terminate their processes; obtain authorization for active jobs first.
 
 ## Removal / rollback
 
@@ -45,6 +45,6 @@ Stop and disable gateway/broker before removing application files. Enumerate act
 
 Before installation, confirm that `/sys/fs/cgroup/cgroup.controllers` includes `memory`. Some Raspberry Pi OS images disable it through firmware defaults. If absent, back up the existing `/boot/firmware/cmdline.txt`, append `cgroup_enable=memory` on its existing single line without replacing root/boot parameters, reboot during a maintenance window, and check again. The installer and broker refuse operation without the controller. After starting a browser, inspect the actual service cgroup memory.high, memory.max, memory.swap.max and memory.events files.
 
-Node must be a supported LTS runtime >=22.12; the development deployment uses an official Node 24 distribution. If installed outside APT, its security updates require explicit maintenance. Debian Chromium and aiohttp remain APT-managed. Never disable the Chromium sandbox to work around deployment problems.
+Node must be a supported LTS runtime >=22.12; the development deployment uses an official Node 24 distribution. If installed outside APT, its security updates require explicit maintenance. Chromium remains APT-managed. The pinned aiohttp runtime now requires reviewed dependency updates and a new runtime path when its version changes; occupied processes retain their old code until retired. Never disable the Chromium sandbox to work around deployment problems.
 
 The current installer is a first-install utility, not an upgrade manager. A clean source unpack/build was checked on the development host; installation on a second pristine OS is still a release gate.

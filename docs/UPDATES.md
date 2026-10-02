@@ -3,6 +3,7 @@
 Build/test the checkout as its ordinary owner first. From a trusted administrative SSH session:
 
 ```sh
+sudo python3 scripts/install-python-runtime.py
 sudo python3 scripts/update-release.py --status
 sudo python3 scripts/update-release.py --source /absolute/path/to/neon-desktop
 ```
@@ -20,3 +21,5 @@ sudo python3 scripts/update-release.py --rollback RELEASE_ID_FROM_STATUS
 Rollback is conservative: it defers while any managed terminal/job is live or a worker is unresponsive, because an older API may not understand newer terminal IDs. It switches frontend/gateway/broker only and retains worker/browser processes. Gateway activation failure restores the prior pointer. Rolling back code does not roll back user files, job logs or configuration formats. Keep independent backups before future schema migrations. No destructive schema migration is part of alpha.3.
 
 A process-preserving deployment and idle/rollback refusal can be verified while real work runs. Performing an actual rollback requires an idle opportunity; never terminate a user's jobs just to test it. Fresh installation and upgrade from this host's earlier alpha are distinct acceptance targets.
+
+The root-owned Python environment `/opt/neon-python-3.14.3` pins reviewed aiohttp dependencies separately from Debian system Python. Old running workers retain their original interpreter and library mappings until retired at an idle maintenance opportunity. Credential-state enforcement in the current broker protects access to retained workers too. The first deployment of credential-state binding requires web reauthentication; server-side processes remain running.

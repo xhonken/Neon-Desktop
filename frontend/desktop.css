@@ -972,3 +972,118 @@ button {
   text-align: left;
   overflow-wrap: anywhere;
 }
+.host-brand {
+  background: transparent;
+  color: var(--accent);
+  border: 0;
+  font-weight: 650;
+  white-space: nowrap;
+  padding: 5px 8px;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.window-caption[role="button"] {
+  cursor: text;
+}
+.task {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.neon-dialog {
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+}
+.quick-open,
+.notification-center {
+  width: 620px;
+}
+.quick-results,
+.notice-list {
+  max-height: 50vh;
+  overflow: auto;
+  margin: 12px 0;
+}
+.quick-result {
+  display: block;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  width: 100%;
+  padding: 10px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.quick-result:hover,
+.quick-result:focus {
+  background: var(--line);
+}
+.notice {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.notice time {
+  color: var(--muted);
+  font-size: 11px;
+}
+.notice p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 6px 0;
+}
+.notice-error {
+  border-left: 3px solid #ed7c86;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (max-width: 900px) {
+  .connection-state {
+    display: none;
+  }
+  .topbar {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 48px;
+  }
+  .host-brand {
+    max-width: 170px;
+  }
+  .topbar-right {
+    gap: 3px;
+  }
+}
+@media (max-width: 600px) {
+  .topbar time,
+  .top-divider {
+    display: none;
+  }
+  .topbar {
+    gap: 3px;
+  }
+  .topbar-right {
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+  .toolbar {
+    flex-wrap: wrap;
+  }
+  .settings-layout {
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+  .settings-main {
+    min-width: 0;
+    padding: 12px;
+  }
+  .files-sidebar {
+    display: none;
+  }
+}

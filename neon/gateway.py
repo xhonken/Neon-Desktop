@@ -7,6 +7,7 @@ import secrets
 import time
 from pathlib import Path
 from urllib.parse import urlencode
+from .http_limits import login_body
 from aiohttp import web, ClientSession, UnixConnector, ClientTimeout, WSMsgType
 
 ROOT = Path(__file__).resolve().parents[1] / "dist"
@@ -147,9 +148,10 @@ async def main():
         return response
 
     async def login(r):
+        raw = await login_body(r)
         async with client.post(
             "http://broker/login",
-            data=await r.read(),
+            data=raw,
             headers={**headers(r), "Content-Type": "application/json"},
         ) as result:
             if result.status != 200:
@@ -255,7 +257,7 @@ async def main():
             web.get("/api/v1/stream/{kind}/{id}", stream),
         ]
     )
-    runner = web.AppRunner(app, access_log=None)
+    runner = web.AppRunner(app, access_log=None, auto_decompress=False)
     await runner.setup()
     await web.TCPSite(runner, "127.0.0.1", 8780).start()
     await asyncio.Event().wait()

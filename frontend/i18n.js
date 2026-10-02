@@ -1,0 +1,60 @@
+let language = "en";
+const sv = {
+  Applications: "Program",
+  Jobs: "Jobb",
+  Sessions: "Sessioner",
+  Notifications: "Notiser",
+  "Quick open": "Snabböppna",
+  "Search apps, windows, SSH and sessions…":
+    "Sök program, fönster, SSH och sessioner…",
+  "New terminal": "Ny terminal",
+  "Open home folder": "Öppna hemkatalog",
+  "Create shortcut": "Skapa genväg",
+  "Change background": "Byt bakgrund",
+  "Arrange windows": "Ordna fönster",
+  "Open terminal here": "Öppna terminal här",
+  "No results": "Inga träffar",
+  "No notifications": "Inga notiser",
+  "Clear notifications": "Rensa notiser",
+  "Mark all read": "Markera alla som lästa",
+  Open: "Öppna",
+  Close: "Stäng",
+  Cancel: "Avbryt",
+  Continue: "Fortsätt",
+  Confirm: "Bekräfta",
+  Stop: "Stoppa",
+  "Rename session": "Byt sessionsnamn",
+  "Session name": "Sessionsnamn",
+  "Running sessions": "Pågående sessioner",
+  "No running terminal sessions.": "Inga pågående terminalsessioner.",
+  Appearance: "Utseende",
+  Desktop: "Skrivbord",
+  "Menu Bar": "Menyrad",
+  Account: "Konto",
+  Security: "Säkerhet",
+  "SSH & Keys": "SSH och nycklar",
+  Storage: "Lagring",
+  Terminal: "Terminal",
+  "Code Editor": "Kodredigerare",
+  "Language & Region": "Språk och region",
+  Accessibility: "Tillgänglighet",
+  "Session & Recovery": "Session och återställning",
+  "Desktop language": "Skrivbordsspråk",
+  "12-hour clock": "12-timmarsklocka",
+  "PERSONAL WORKSPACE": "PERSONLIG ARBETSYTA",
+  App: "Program",
+  Window: "Fönster",
+  Session: "Session",
+  "No applications found": "Inga program hittades",
+  "Rename this terminal session": "Byt namn på terminalsessionen",
+  "Show desktop menu": "Visa skrivbordsmenyn",
+  "Sign out": "Logga ut",
+  "Keyboard shortcuts": "Tangentbordsgenvägar",
+};
+export function setLanguage(value) {
+  language = String(value).startsWith("sv") ? "sv" : "en";
+  document.documentElement.lang = language;
+}
+export function t(value) {
+  return language === "sv" ? sv[value] || value : value;
+}

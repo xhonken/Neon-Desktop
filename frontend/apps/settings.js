@@ -1,3 +1,4 @@
+import { t } from "../i18n.js";
 import { el, button, field, bytes, confirmAction } from "../ui.js";
 import { wallpaperControls } from "../wallpaper.js";
 export async function mount(w, c) {
@@ -57,10 +58,10 @@ export async function mount(w, c) {
     w.state.section = section;
     c.save();
     for (const b of nav.children)
-      b.classList.toggle("active", b.textContent === section);
+      b.classList.toggle("active", b.dataset.section === section);
     main.replaceChildren(
       el("div", { class: "section-kicker", text: "PERSONAL WORKSPACE" }),
-      el("h2", { text: section }),
+      el("h2", { text: t(section) }),
     );
     if (section === "Appearance") {
       note("A quiet workspace. Color where it matters.");
@@ -237,8 +238,30 @@ export async function mount(w, c) {
       );
     } else if (section === "Language & Region") {
       toggle("12-hour clock", "clock12", false);
+      const lang = el(
+        "select",
+        { class: "form-select", "aria-label": t("Desktop language") },
+        el("option", { value: "en", text: "English" }),
+        el("option", { value: "sv", text: "Svenska" }),
+      );
+      lang.value = String(c.config.language || "en").startsWith("sv")
+        ? "sv"
+        : "en";
+      lang.onchange = () => {
+        set("language", lang.value);
+        for (const b of nav.children) b.textContent = t(b.dataset.section);
+        show(section);
+      };
+      main.append(
+        el(
+          "label",
+          { class: "field" },
+          el("span", { text: t("Desktop language") }),
+          lang,
+        ),
+      );
       note(
-        "English UI in this alpha. Locale-aware formatting follows the browser; full translation and timezone controls are planned.",
+        "Desktop menus and shared dialogs support English and Swedish. Application-specific text and system output may remain in English.",
       );
     } else if (section === "Accessibility") {
       toggle("Reduced motion", "reducedMotion", false);
@@ -249,13 +272,14 @@ export async function mount(w, c) {
       );
     }
   }
-  for (const s of sections)
-    nav.append(
-      button(
-        s,
-        () => show(s).catch((e) => c.notify(e.message)),
-        "settings-item",
-      ),
+  for (const s of sections) {
+    const b = button(
+      t(s),
+      () => show(s).catch((e) => c.notify(e.message)),
+      "settings-item",
     );
+    b.dataset.section = s;
+    nav.append(b);
+  }
   await show(w.state.section || "Appearance");
 }

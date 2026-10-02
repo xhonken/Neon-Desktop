@@ -23,7 +23,7 @@ from .workbench import Workbench, GENERATION, ROOT, admit, ssh_argv
 
 
 class Terminal:
-    def __init__(self, argv, env):
+    def __init__(self, argv, env, cwd_fd=None):
         self.id = GENERATION + "_" + uuid.uuid4().hex
         self.created = time.time()
         self.name = "Terminal"
@@ -43,7 +43,8 @@ class Terminal:
                 stderr=slave,
                 start_new_session=True,
                 close_fds=True,
-                cwd=env["HOME"],
+                cwd=env["HOME"] if cwd_fd is None else f"/proc/self/fd/{cwd_fd}",
+                pass_fds=() if cwd_fd is None else (cwd_fd,),
                 env=env,
             )
         except Exception:
@@ -324,7 +325,12 @@ async def main():
             env = dict(os.environ)
             if kind == "ssh":
                 env.update(await workbench.agent_env())
-            t = Terminal(argv, env)
+            cwd_fd = fs.open(b.get("cwd", "."), os.O_RDONLY | os.O_DIRECTORY) if kind == "shell" else None
+            try:
+                t = Terminal(argv, env, cwd_fd)
+            finally:
+                if cwd_fd is not None:
+                    os.close(cwd_fd)
             t.kind = kind
             t.name = (
                 profile["name"]

@@ -18,7 +18,9 @@ import struct
 import time
 from collections import defaultdict, deque
 from pathlib import Path
+from .http_limits import login_body
 from aiohttp import web, ClientSession, UnixConnector, ClientTimeout, WSMsgType
+from .credentials import credential_version
 from .workbench import GENERATION, ROOT as RELEASE_ROOT, admit, resources
 from .app_packages import (
     load_catalog,
@@ -77,6 +79,8 @@ class Sessions:
         self.db.execute(
             "CREATE TABLE IF NOT EXISTS principals (uid INTEGER PRIMARY KEY, identity TEXT)"
         )
+        if "credential" not in {r[1] for r in self.db.execute("PRAGMA table_info(sessions)")}:
+            self.db.execute("ALTER TABLE sessions ADD COLUMN credential TEXT NOT NULL DEFAULT ''")
         self.db.commit()
 
     @staticmethod
@@ -85,6 +89,7 @@ class Sessions:
 
     def issue(self, uid, peer):
         identity = principal(uid)
+        credential = credential_version(pwd.getpwuid(uid).pw_name)
         old = self.db.execute(
             "SELECT identity FROM principals WHERE uid=?", (uid,)
         ).fetchone()
@@ -94,6 +99,7 @@ class Sessions:
         self.db.execute(
             "INSERT OR REPLACE INTO principals VALUES (?,?)", (uid, identity)
         )
+        self.db.execute("DELETE FROM sessions WHERE uid=? AND credential<>?", (uid, credential))
         now = time.time()
         token = secrets.token_urlsafe(32)
         csrf = secrets.token_urlsafe(32)
@@ -108,7 +114,7 @@ class Sessions:
         ):
             raise web.HTTPTooManyRequests()
         self.db.execute(
-            "INSERT INTO sessions VALUES (?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO sessions (token,sid,uid,created,touched,expires,csrf,peer,principal,credential) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 self.digest(token),
                 secrets.token_hex(12),
@@ -119,6 +125,7 @@ class Sessions:
                 csrf,
                 peer,
                 identity,
+                credential,
             ),
         )
         self.db.commit()
@@ -126,14 +133,14 @@ class Sessions:
 
     def get(self, token, touch=True):
         row = self.db.execute(
-            "SELECT sid,uid,created,touched,expires,csrf,peer,principal FROM sessions WHERE token=?",
+            "SELECT sid,uid,created,touched,expires,csrf,peer,principal,credential FROM sessions WHERE token=?",
             (self.digest(token),),
         ).fetchone()
         if not row or row[4] < time.time() or row[3] < time.time() - 1800:
             raise web.HTTPUnauthorized()
         try:
             account = eligible(pwd.getpwuid(row[1]).pw_name)
-            if row[7] != principal(row[1]):
+            if row[7] != principal(row[1]) or row[8] != credential_version(account.pw_name):
                 raise ValueError("Account changed")
         except (KeyError, ValueError, OSError):
             raise web.HTTPUnauthorized()
@@ -283,7 +290,13 @@ async def main():
                 )
 
     async def login(request):
-        body = await request.json()
+        raw = await login_body(request)
+        try:
+            body = json.loads(raw)
+            if not isinstance(body, dict):
+                raise ValueError()
+        except (ValueError, UnicodeDecodeError):
+            raise web.HTTPBadRequest(text="Invalid request")
         name = body.get("username", "")
         password = body.get("password", "")
         peer = request.headers.get("X-Client-IP", "unknown")[:64]
@@ -409,6 +422,7 @@ async def main():
         return web.json_response(
             dict(
                 username=a.pw_name,
+                hostname=socket.gethostname(),
                 uid=a.pw_uid,
                 home=a.pw_dir,
                 shell=a.pw_shell,
@@ -823,15 +837,9 @@ async def main():
                     # Do not renew idle time by output alone.
                     while True:
                         await asyncio.sleep(15)
-                        row = sessions.db.execute(
-                            "SELECT expires,touched FROM sessions WHERE token=?",
-                            (sessions.digest(token),),
-                        ).fetchone()
-                        if (
-                            not row
-                            or row[0] < time.time()
-                            or row[1] < time.time() - 1800
-                        ):
+                        try:
+                            sessions.get(token, touch=False)
+                        except web.HTTPUnauthorized:
                             return
 
                 tasks = [
@@ -858,7 +866,7 @@ async def main():
             web.get("/stream/{kind}/{id}", stream),
         ]
     )
-    runner = web.AppRunner(app, access_log=None)
+    runner = web.AppRunner(app, access_log=None, auto_decompress=False)
     await runner.setup()
     path = RUNTIME / "api.sock"
     path.unlink(missing_ok=True)

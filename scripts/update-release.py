@@ -17,6 +17,9 @@ if os.geteuid() != 0:
     raise SystemExit("Run as an administrator through sudo/SSH")
 
 
+if not pathlib.Path("/opt/neon-python-3.14.3/bin/python").exists():
+    raise SystemExit("First run: sudo python3 scripts/install-python-runtime.py")
+
 def inventory():
     result = []
     for path in pathlib.Path("/run").glob("neon-worker-*/api.sock"):

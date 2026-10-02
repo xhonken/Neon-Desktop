@@ -2,11 +2,12 @@
 Description=Neon Desktop authentication and user-session broker
 After=network.target
 [Service]
+LimitCORE=0
 Type=simple
 User=root
 UMask=0077
 WorkingDirectory=/opt/neon-desktop
-ExecStart=/usr/bin/python3 -m neon.broker
+ExecStart=/opt/neon-python-3.14.3/bin/python -m neon.broker
 Restart=on-failure
 RuntimeDirectory=neon-broker
 RuntimeDirectoryMode=0755

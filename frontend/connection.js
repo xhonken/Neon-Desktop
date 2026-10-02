@@ -1,3 +1,4 @@
+import { t as tr } from "./i18n.js";
 import { el, button } from "./ui.js";
 
 // Keep the document and its unsaved state while connectivity/authentication recovers.
@@ -235,7 +236,7 @@ export async function sessionPicker(c) {
   const { terminals } = await c.rpc("org.neon.terminal", "terminal.list");
   const d = el("dialog", { class: "neon-dialog session-picker" });
   const list = el("div", { class: "session-list" });
-  const empty = el("p", { text: "No running terminal sessions." });
+  const empty = el("p", { text: tr("No running terminal sessions.") });
   const error = el("p", { role: "status", class: "text-warning" });
   const rows = new Map(),
     stopped = new Set();
@@ -282,7 +283,7 @@ export async function sessionPicker(c) {
           "btn btn-neon session-open",
         );
         const stop = button(
-          "Stop",
+          tr("Stop"),
           async () => {
             stop.disabled = true;
             open.disabled = true;
@@ -301,7 +302,7 @@ export async function sessionPicker(c) {
             } finally {
               stop.disabled = false;
               open.disabled = false;
-              stop.textContent = "Stop";
+              stop.textContent = tr("Stop");
             }
           },
           "btn btn-sm btn-outline-danger",
@@ -344,9 +345,9 @@ export async function sessionPicker(c) {
       if (!disposed) timer = setTimeout(refresh, 2000);
     }
   }
-  const closeButton = button("Close", close);
+  const closeButton = button(tr("Close"), close);
   d.append(
-    el("h3", { text: "Running sessions" }),
+    el("h3", { text: tr("Running sessions") }),
     el("p", {
       text: "Open a session to reconnect. Closing a window keeps it running. Stop ends the selected terminal session and its shell.",
     }),

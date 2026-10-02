@@ -17,11 +17,13 @@ An independent Linux web desktop for Raspberry Pi 5 and Debian ARM64. Sign in wi
 Use a dedicated development system. System dependencies:
 
 ```sh
-sudo apt-get install caddy python3-aiohttp python3-venv libpam0g-dev gcc nodejs npm chromium w3m git
+sudo apt-get install caddy python3-venv libpam0g-dev gcc nodejs npm chromium w3m git
 node --version # Supported Node LTS >=22.12, recommended 24
 npm ci
 npm run build
-python3 -m unittest discover -s tests -v
+python3 -m venv .venv
+.venv/bin/pip install -r deploy/python-runtime.txt
+.venv/bin/python -m unittest discover -s tests -v
 npm test
 ```
 
@@ -32,6 +34,7 @@ The lockfile pins the dependency graph. Dependencies are served locally; the des
 Read [deployment](docs/DEPLOYMENT.md) and [security](docs/SECURITY.md) first. Installation modifies PAM/service/Caddy configuration and requires root. Do not use a development checkout writable by an untrusted account as installation input.
 
 ```sh
+sudo python3 scripts/install-python-runtime.py
 sudo python3 scripts/install.py --origin https://YOUR_SERVER_IP --replace-caddy
 ```
 
@@ -44,6 +47,9 @@ Allow TCP443 from the intended client network in the host firewall. TCP80 may be
 Open `https://YOUR_SERVER_IP/` and sign in with an existing eligible Linux account (UID≥1000, HOME below `/home`, interactive shell in `/etc/shells`). Root and service accounts are rejected. Accounts remain managed by Linux, not by the web application.
 
 ## Documentation
+
+- [Desktop foundations and keyboard navigation](docs/DESKTOP_FOUNDATION.md)
+- [Security review and login transport](docs/SECURITY_REVIEW.md)
 
 - [Shared Bash prompt and welcome mark](docs/SHELL_THEME.md)
 

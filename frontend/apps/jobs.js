@@ -11,8 +11,7 @@ export async function mount(w, c) {
     el("div", { class: "workbench-layout" }, list, detail),
   );
   let disposed = false,
-    busy = false,
-    seen = new Map();
+    busy = false;
   const run = (fn) => async () => {
     try {
       await fn();
@@ -74,13 +73,6 @@ export async function mount(w, c) {
       );
       list.replaceChildren(el("h3", { class: "h6", text: "BACKGROUND JOBS" }));
       for (const job of j.jobs) {
-        if (
-          seen.has(job.id) &&
-          seen.get(job.id) !== job.status &&
-          ["completed", "failed", "interrupted"].includes(job.status)
-        )
-          c.notify(job.name + " · " + job.status);
-        seen.set(job.id, job.status);
         const mem = job.resources?.MemoryCurrent;
         const cpu = Number(job.resources?.CPUUsageNSec) / 1e9;
         list.append(
@@ -137,6 +129,13 @@ export async function mount(w, c) {
             "settings-item",
           ),
         );
+      }
+      if (w.state.selected) {
+        const index = j.jobs.findIndex((job) => job.id === w.state.selected);
+        if (index >= 0) {
+          list.querySelectorAll("button")[index]?.click();
+          delete w.state.selected;
+        }
       }
       if (!j.jobs.length)
         list.append(

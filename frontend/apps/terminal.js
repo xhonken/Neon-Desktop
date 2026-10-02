@@ -1,7 +1,8 @@
+import { t } from "../i18n.js";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
-import { el, button, confirmAction } from "../ui.js";
+import { el, button, ask, confirmAction } from "../ui.js";
 import {
   reconnectingStream,
   sessionPicker,
@@ -32,12 +33,14 @@ export async function mount(w, c) {
   term.loadAddon(fit);
   term.open(host);
   let id = w.state.terminal,
-    stream;
+    stream,
+    sessionHost = c.identity.hostname || location.hostname;
   if (!id) {
     const b = await c.call("terminal.create", {
       kind:
         c.app.id === "org.neon.text-browser" ? "text" : w.state.kind || "shell",
       profile: w.state.profile,
+      cwd: w.state.cwd || ".",
     });
     id = b.id;
     w.state.terminal = id;
@@ -48,6 +51,15 @@ export async function mount(w, c) {
     async beforeConnect() {
       const b = await c.call("terminal.list");
       const session = b.terminals.find((t) => t.id === id);
+      if (session) {
+        sessionHost = session.host || c.identity.hostname || location.hostname;
+        w.state.kind = session.kind;
+      }
+      if (session)
+        c.wm.setTitle(
+          w,
+          `${session.name || "Terminal"} · ${session.host || c.identity.hostname || location.hostname}`,
+        );
       if (session?.alive === false) {
         await closeTerminalViews(c, id);
         return false;
@@ -79,8 +91,14 @@ export async function mount(w, c) {
           if (b.readonly)
             status.textContent = "View only · use Take control to type";
         }
-        if (b.alive === false)
+        if (b.alive === false) {
+          if (w.state.kind === "ssh")
+            c.notify((w.title || "SSH") + " · connection ended", {
+              action: () => c.open("org.neon.connections"),
+              level: "info",
+            });
           closeTerminalViews(c, id).catch((e) => c.notify(e.message));
+        }
         if (b.error) c.notify(b.error);
       }
     },
@@ -99,7 +117,33 @@ export async function mount(w, c) {
     if (host.clientWidth > 0 && host.clientHeight > 0) fit.fit();
   });
   observer.observe(host);
+  async function rename() {
+    try {
+      const name = await ask(t("Session name"), w.title.split(" · ")[0]);
+      if (name) {
+        await c.call("session.rename", { id, name });
+        c.wm.setTitle(w, name + " · " + sessionHost);
+      }
+    } catch (e) {
+      c.notify(e.message);
+    }
+  }
+  const caption = w.node.querySelector(".window-caption");
+  caption.tabIndex = 0;
+  caption.title = t("Rename this terminal session");
+  caption.setAttribute("role", "button");
+  caption.addEventListener("dblclick", (e) => {
+    e.stopPropagation();
+    rename();
+  });
+  caption.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === "F2") {
+      e.preventDefault();
+      rename();
+    }
+  });
   toolbar.append(
+    button(t("Rename session"), rename),
     button("Reconnect", () => stream.reconnect()),
     button("Server sessions", () =>
       sessionPicker(c).catch((e) => c.notify(e.message)),

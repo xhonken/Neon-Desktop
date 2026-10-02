@@ -3,12 +3,13 @@ Description=Neon Desktop unprivileged web gateway
 Requires=neon-broker.service
 After=neon-broker.service
 [Service]
+LimitCORE=0
 User=neon-gateway
 Group=neon-gateway
 UMask=0077
 WorkingDirectory=/opt/neon-desktop
 EnvironmentFile=/etc/neon-desktop/environment
-ExecStart=/usr/bin/python3 -m neon.gateway
+ExecStart=/opt/neon-python-3.14.3/bin/python -m neon.gateway
 Restart=on-failure
 NoNewPrivileges=yes
 ProtectSystem=strict
