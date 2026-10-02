@@ -1,5 +1,6 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./desktop.css";
+import { createWallpaper } from "./wallpaper.js";
 import { el, button } from "./ui.js";
 import { WindowManager } from "./wm.js";
 import { connection, sessionPicker } from "./connection.js";
@@ -89,14 +90,13 @@ export async function start(identity) {
   const menu = el("aside", { class: "launcher", hidden: "" });
   const host = el("main", { class: "desktop-surface" });
   const tasks = el("div", { class: "taskbar", "aria-label": "Open windows" });
-  const background = el(
-    "div",
-    { class: "desktop-identity" },
-    el("div", { class: "identity-mark", text: "N /" }),
-    el("h1", { text: "NEON" }),
-    el("p", { text: "YOUR LINUX WORKSPACE" }),
+  const wallpaper = createWallpaper(
+    host,
+    config,
+    device,
+    (action, args) => rpc("org.neon.settings", action, args),
+    notify,
   );
-  host.append(background);
   root.append(top, menu, host, tasks, toastArea);
   const wm = new WindowManager(host, changed);
   function changed() {
@@ -145,6 +145,7 @@ export async function start(identity) {
     rpc,
     notify,
     config,
+    wallpaper,
     wm,
     save,
     apply,
@@ -417,6 +418,7 @@ export async function start(identity) {
     if (e.key === "Escape") menu.hidden = true;
   });
   function apply() {
+    wallpaper.update();
     const style = document.documentElement.style;
     style.setProperty("--accent", config.accent || "#65e6ad");
     style.setProperty("--ui-scale", String(config.scale || 1));

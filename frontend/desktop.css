@@ -107,36 +107,57 @@ button {
     64px 64px,
     auto;
 }
-.desktop-identity {
+.desktop-surface[data-wallpaper="neon"],
+.desktop-surface[data-wallpaper="custom"],
+.desktop-surface[data-wallpaper="plain"] {
+  background: #090e12;
+}
+.desktop-wallpaper {
   position: absolute;
-  right: 8%;
-  bottom: 13%;
-  text-align: right;
-  user-select: none;
+  inset: 0;
   pointer-events: none;
-  opacity: 0.65;
+  background-position: center;
+  background-repeat: no-repeat;
 }
-.identity-mark {
-  font:
-    200 68px ui-monospace,
-    monospace;
-  color: var(--accent);
-  letter-spacing: -15px;
-  margin-right: 12px;
+.wallpaper-preview {
+  aspect-ratio: 16 / 9;
+  max-height: 210px;
+  width: 100%;
+  background-color: #090e12;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 12px 0;
 }
-.desktop-identity h1 {
-  font-size: 3.2rem;
-  letter-spacing: 17px;
-  font-weight: 250;
-  color: #a8c5bd;
+.wallpaper-preview[data-wallpaper="grid"] {
+  background-image:
+    linear-gradient(#ffffff08 1px, transparent 1px),
+    linear-gradient(90deg, #ffffff08 1px, transparent 1px) !important;
+  background-size: 24px 24px !important;
+}
+.wallpaper-actions,
+.wallpaper-brightness {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.wallpaper-brightness input {
+  max-width: 180px;
+  accent-color: var(--accent);
+}
+.wallpaper-brightness output {
+  min-width: 3.5em;
+}
+.wallpaper-settings {
+  max-width: 640px;
+}
+.wallpaper-settings select {
+  max-width: 240px;
+}
+.wallpaper-settings [role="status"] {
   margin-top: 12px;
-}
-.desktop-identity p {
-  font:
-    10px ui-monospace,
-    monospace;
-  letter-spacing: 5px;
-  color: #53766d;
 }
 .desktop-window {
   position: absolute;

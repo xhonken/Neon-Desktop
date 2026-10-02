@@ -45,6 +45,7 @@ Open `https://YOUR_SERVER_IP/` and sign in with an existing eligible Linux accou
 
 ## Documentation
 
+- [Backgrounds and Neon Glass artwork](docs/WALLPAPER.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Security and threat boundaries](docs/SECURITY.md)
 - [App Center, personal/system apps and Git distribution](docs/APP_CENTER.md)

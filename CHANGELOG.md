@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.0-alpha.5 — unreleased
+
+Confirms the Neon Desktop name and adds the Neon Glass default wallpaper. Appearance settings now support private personal raster uploads, preset selection, fill/fit, brightness and removal. Images use the existing authenticated HOME API and stay separate from desktop JSON. Existing user processes survive deployment.
+
 ## 0.1.0-alpha.4 — unreleased
 
 Adds App Center with Git-backed catalogs, personal install/update/uninstall and administrator-managed global applications. Public HTTPS sources are pinned to full commits; packages are reviewed before atomic activation. Personal stores live in HOME, system stores outside immutable core releases. Global installation remains separate from per-user execution and permission grants.

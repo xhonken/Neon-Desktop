@@ -16,3 +16,5 @@ await build({
 );
 fs.copyFileSync("frontend/index.html", "dist/index.html");
 fs.copyFileSync("frontend/login.css", "dist/login.css");
+
+fs.cpSync("frontend/wallpapers", "dist/wallpapers", { recursive: true });

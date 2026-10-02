@@ -1,7 +1,7 @@
 {
   "id": "org.neon.terminal",
   "name": "Terminal",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "category": "development",
   "pinnable": true,
   "runtime": "core",

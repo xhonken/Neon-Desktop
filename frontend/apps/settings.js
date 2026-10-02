@@ -1,5 +1,8 @@
 import { el, button, field, bytes, confirmAction } from "../ui.js";
+import { wallpaperControls } from "../wallpaper.js";
 export async function mount(w, c) {
+  let cleanupAppearance = () => {};
+  w.cleanup = () => cleanupAppearance();
   const nav = el("nav", {
       class: "settings-nav",
       "aria-label": "Settings sections",
@@ -49,6 +52,8 @@ export async function mount(w, c) {
     main.append(el("p", { class: "muted", text }));
   }
   async function show(section) {
+    cleanupAppearance();
+    cleanupAppearance = () => {};
     w.state.section = section;
     c.save();
     for (const b of nav.children)
@@ -75,9 +80,9 @@ export async function mount(w, c) {
       main.append(swatches);
       toggle("Translucent blur", "blur");
       numeric("UI scale", "scale", 1, 0.8, 1.5);
-      note(
-        "Background and additional theme controls are scheduled for the next desktop refinement.",
-      );
+      const backgrounds = wallpaperControls(w, c);
+      main.append(backgrounds.element);
+      cleanupAppearance = backgrounds.cleanup;
     } else if (section === "Desktop" || section === "Session & Recovery") {
       toggle("Snap windows to screen edges", "snapping");
       toggle("Restore windows after sign-in", "recovery");
@@ -221,12 +226,10 @@ export async function mount(w, c) {
       );
     } else if (section === "Applications") {
       main.append(
-        button("Open Application Manager", () =>
-          c.open("org.neon.applications"),
-        ),
+        button("Open App Center", () => c.open("org.neon.applications")),
       );
       note(
-        "Core application capabilities are validated server-side. Third-party installation is gated until isolation and user-consent handling are verified.",
+        "Core application capabilities are validated server-side. Install personal apps from the configured catalog in App Center. System apps are installed by an administrator; each user approves their own app permissions.",
       );
     } else if (section === "Notifications") {
       note(

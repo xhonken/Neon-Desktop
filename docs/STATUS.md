@@ -1,6 +1,6 @@
-# Implementation status — 0.1.0-alpha.4
+# Implementation status — 0.1.0-alpha.5
 
-This is a working first alpha, not completion of the full project plan. The working product name is Neon Desktop. It is independently implemented; no Pi-2000 source or migration layer is included.
+This is a working first alpha, not completion of the full project plan. The confirmed product name is Neon Desktop. It is independently implemented; no Pi-2000 source or migration layer is included.
 
 ## Installed and exercised
 
@@ -31,7 +31,7 @@ On Raspberry Pi OS the memory cgroup controller had to be enabled in the boot co
 - The editor checks an expected content revision before saving and preserves existing mode bits. This detects ordinary intervening saves; it is not a transaction against arbitrary external writers racing the final replacement. Unsaved editor documents now have bounded private recovery drafts; see SESSION_RECOVERY.md. Later LSP, Git, split editor and autocomplete are not implemented.
 - OpenSSH uses the system host-key verification dialog inside the PTY and refuses changed keys. Named groups, encrypted-key import/unlock and optional remote tmux recovery are implemented in alpha.3. Graphical known_hosts/authorized_keys editing and SSH key generation remain. No SSH password storage is provided. Remote-host acceptance and w3m interaction have not received the same graphical coverage as the local PTY.
 - Browser streaming is an initial single-page implementation. Rich tabs, audio/video optimization, clipboard/file dialogs/download integration, broader site/input compatibility, stress tests and aggregate multi-user admission remain. Minimizing or closing a desktop window does not intentionally end the browser process; only explicit stop ends it during ordinary operation. A crash, resource-limit kill or server restart still terminates processes.
-- Settings is not the entire specified control panel. PAM password changing, secure keyring integration, HOME usage/largest directories/Trash controls, per-app notification preferences, full language/timezone/region controls, backgrounds and some appearance/editor controls remain. TOTP/WebAuthn are future work.
+- Settings is not the entire specified control panel. PAM password changing, secure keyring integration, HOME usage/largest directories/Trash controls, per-app notification preferences, full language/timezone/region controls and some appearance/editor controls remain. TOTP/WebAuthn are future work.
 - Third-party apps support frontend isolation and two grant types: user-files and notifications. Other capabilities and third-party Python/Node backend execution are denied. The API/SDK is versioned but still alpha and not yet a stable compatibility promise. The example package is a development fixture, not installed in the normal nine-app core.
 - No Administration app or optional Git/Arduino/database/media/etc. apps are built. System administration stays outside normal user Settings. The web terminal cannot elevate through sudo/setuid; use SSH for administration.
 - Full mobile/touch and assistive-technology acceptance, aggregate multi-user load testing, independent security review, broader upgrade/rollback acceptance and an owner-provided security contact are required before a public production release.
@@ -54,3 +54,11 @@ Process-preserving release switches retained the owner's existing worker and Chr
 The installed HTTPS desktop passed the complete Git lifecycle with a loopback smart HTTPS Git repository and two disposable PAM users: administrator catalog sync, global CLI installation, personal graphical installation/update/uninstall, same-document launcher refresh, personal visibility isolation, explicit sandbox permission review, stale prepared-version rejection, old asset/grant invalidation, global app file operations under each user's UID, and document preservation after uninstall. Test catalog, CA and accounts were cleaned up. Persistence and account-isolation regressions pass. Existing owner workers/browser were not restarted.
 
 No public application repository/catalog has been created or published. The normal catalog stays empty until an administrator configures reviewed repositories/commits. A package template and catalog instructions are provided in APP_CENTER.md. Native app backends, broader capabilities, automatic catalog updates and publisher signatures remain future work. This implements the distribution foundation, not the optional application collection or a general system package manager.
+
+## Wallpaper and identity (alpha.5)
+
+Neon Desktop is the confirmed project name. Neon Glass is the default wallpaper, with a cyan/mint glass N mark and quiet graphite backdrop. Settings > Appearance offers the bundled image, classic grid, plain graphite or a personal PNG/JPEG/WebP upload, fill/fit and brightness. Personal images are normalized to JPEG in the client (maximum edge2560px); input limit10MiB/40MP, output limit5MiB. Original files are not modified. SVG/remote image URLs are not accepted.
+
+The existing UID-bound HOME API stores the personal image mode0600 under `.config/neon-desktop/wallpaper-<device UUID>.jpg`. Per-device desktop configuration stores only selection/revision/fit/brightness, not image content. The gateway gains no HOME access and no public personal-image endpoint. The bundled image requires authentication. Missing/invalid personal images fall back to Neon Glass with a notification. Choosing another preset preserves the personal image until explicitly removed.
+
+Installed HTTPS/PAM acceptance with two disposable accounts passed: authenticated-only bundled asset, default artwork, personal upload and reload, retained fit/brightness, account isolation, SVG rejection, remove/reset, narrow viewport and no JavaScript page errors. Real desktop and Appearance screenshots were visually inspected. Existing owner workers, four live terminals and Chromium process were retained.
