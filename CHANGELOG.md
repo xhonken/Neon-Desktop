@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — shared Bash theme
+
+Adds a shared mint/cyan Bash prompt and compact N/ welcome mark for existing and future Linux users. A system Bash hook preserves personal dotfiles, aliases, history and running sessions. The first-install utility installs the theme; existing deployments can apply it independently with `scripts/install-shell-theme.py`. See docs/SHELL_THEME.md.
+
 ## 0.1.0-alpha.5 — unreleased
 
 Confirms the Neon Desktop name and adds the Neon Glass default wallpaper. Appearance settings now support private personal raster uploads, preset selection, fill/fit, brightness and removal. Images use the existing authenticated HOME API and stay separate from desktop JSON. Existing user processes survive deployment.

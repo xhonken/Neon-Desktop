@@ -77,6 +77,7 @@ if target.exists():
 target.mkdir(mode=0o755)
 for name in [
     "neon",
+    "deploy",
     "dist",
     "apps",
     "node_modules",
@@ -181,6 +182,9 @@ subprocess.run(
     ["systemctl", "enable", "--now", "neon-broker", "neon-gateway", "caddy"], check=True
 )
 subprocess.run(["systemctl", "reload", "caddy"], check=True)
+subprocess.run(
+    ["/usr/bin/python3", str(source / "scripts/install-shell-theme.py")], check=True
+)
 print(
     "Installed. Open HTTPS in your host firewall; trust the Caddy local CA on clients. Verify real login before announcing readiness."
 )

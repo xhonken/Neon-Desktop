@@ -45,6 +45,8 @@ Open `https://YOUR_SERVER_IP/` and sign in with an existing eligible Linux accou
 
 ## Documentation
 
+- [Shared Bash prompt and welcome mark](docs/SHELL_THEME.md)
+
 - [Backgrounds and Neon Glass artwork](docs/WALLPAPER.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Security and threat boundaries](docs/SECURITY.md)
