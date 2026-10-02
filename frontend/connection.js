@@ -224,6 +224,13 @@ export function reconnectingStream(c, path, handlers) {
   };
 }
 
+// Closing views updates the saved layout and taskbar; it never stops a process.
+export async function closeTerminalViews(c, id) {
+  for (const w of [...c.wm.windows.values()]) {
+    if (c.wm.windows.has(w.id) && w.state.terminal === id) await c.wm.close(w);
+  }
+}
+
 export async function sessionPicker(c) {
   const { terminals } = await c.rpc("org.neon.terminal", "terminal.list");
   const d = el("dialog", { class: "neon-dialog session-picker" });
@@ -283,6 +290,7 @@ export async function sessionPicker(c) {
             try {
               await c.rpc("org.neon.terminal", "terminal.stop", { id: t.id });
               stopped.add(t.id);
+              await closeTerminalViews(c, t.id);
               if (!disposed) {
                 render([...rows.values()].map((r) => r.terminal));
                 error.textContent = "";

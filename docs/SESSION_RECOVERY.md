@@ -7,8 +7,8 @@
 | Client internet loss or broken WebSocket | Local shells, their jobs, SSH clients and Chromium continue | Terminal/browser views retry automatically with bounded backoff |
 | Browser tab/window closed | Server processes continue | Sign in/open the desktop again; saved windows reattach |
 | Sign out or web-session expiry/revocation | Access is revoked; processes are not stopped | Authenticate again; expired access can be renewed in place without replacing the current document |
-| Terminal app window closed | Detach only; do not send hangup | Use Sessions in the menu bar to select a running or ended terminal |
-| Stop process / shell exit | That terminal ends | Retained output is shown as ended; recovery never substitutes a new shell for the old ID |
+| Terminal app window closed | Detach only; do not send hangup | Use Sessions in the menu bar to select a running terminal |
+| Stop process / shell exit | That terminal ends | All views of that terminal close, including taskbar and saved layout entries; recovery never substitutes a new shell for the old ID |
 | Browser End session | Chromium closes | Opening a browser again creates a new process |
 | Pi reboot, power loss, worker/browser crash or resource-limit kill | Affected processes terminate | Recovery restores UI, not dead processes; missing terminals and changed browser instances are reported |
 
@@ -18,7 +18,7 @@ The SSH connection originates on the Pi. Losing the connection between the clien
 
 ## Terminal history and discovery
 
-Sessions lists only running terminal/SSH sessions, with a direct Stop button per row. Successfully stopped sessions disappear immediately; the open list refreshes every two seconds to remove sessions that ended elsewhere. Jobs & Sessions also hides ended terminals. Closing the picker stops its refresh timer. Reattaching uses the existing ID and does not launch another shell. Terminal input is not buffered/replayed automatically while disconnected, avoiding duplicate commands. The worker retains the most recent 256 KiB of terminal output per session, not an unlimited durable job log. Up to eight live terminals and a bounded recent-ended history are retained per worker. Write long job logs to a file when the complete output matters.
+Sessions lists only running terminal/SSH sessions, with a direct Stop button per row. Successfully stopped sessions disappear immediately; the open list refreshes every two seconds to remove sessions that ended elsewhere. Jobs & Sessions also hides ended terminals. Closing the picker stops its refresh timer. Stopping a session also closes its open desktop windows, including minimized views. Connected views on other devices close on the server end notification; disconnected views reconcile when they reconnect. Natural shell exit has the same effect. A temporary connection failure alone does not close a window. Reattaching uses the existing ID and does not launch another shell. Terminal input is not buffered/replayed automatically while disconnected, avoiding duplicate commands. The worker retains the most recent 256 KiB of terminal output per session, not an unlimited durable job log. Up to eight live terminals and a bounded recent-ended history are retained per worker. Write long job logs to a file when the complete output matters.
 
 Disabling saved window layout recovery does not stop or hide the server session registry. A foreground job finishing can return to its existing shell; the session will still be listed as running because its shell remains alive. Read its output or job log to determine job completion.
 

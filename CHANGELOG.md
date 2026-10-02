@@ -2,7 +2,7 @@
 
 ## Unreleased — sessions and shared Bash theme
 
-Sessions now shows only running terminal/SSH sessions, with a direct Stop button per row and automatic refresh while open. Ended terminals also disappear from Jobs & Sessions; retained output in existing terminal windows remains available.
+Sessions now shows only running terminal/SSH sessions, with a direct Stop button per row and automatic refresh while open. Ended terminals also disappear from Jobs & Sessions; ending a terminal session now closes its open windows and removes their taskbar/saved-layout entries, including views on other connected devices. Temporary disconnection still preserves windows and processes.
 
 Adds a shared mint/cyan Bash prompt and compact N/ welcome mark for existing and future Linux users. A system Bash hook preserves personal dotfiles, aliases, history and running sessions. The first-install utility installs the theme; existing deployments can apply it independently with `scripts/install-shell-theme.py`. See docs/SHELL_THEME.md.
 

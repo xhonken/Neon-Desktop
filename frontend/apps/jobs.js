@@ -1,3 +1,4 @@
+import { closeTerminalViews } from "../connection.js";
 import { el, button, field, ask, confirmAction, bytes } from "../ui.js";
 export async function mount(w, c) {
   const toolbar = el("div", { class: "toolbar" }),
@@ -184,6 +185,7 @@ export async function mount(w, c) {
                         )
                       ) {
                         await c.call("terminal.stop", { id: t.id });
+                        await closeTerminalViews(c, t.id);
                         detail.replaceChildren();
                         await refresh();
                       }

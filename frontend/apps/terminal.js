@@ -1,8 +1,12 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
-import { el, button, ask, confirmAction } from "../ui.js";
-import { reconnectingStream, sessionPicker } from "../connection.js";
+import { el, button, confirmAction } from "../ui.js";
+import {
+  reconnectingStream,
+  sessionPicker,
+  closeTerminalViews,
+} from "../connection.js";
 export async function mount(w, c) {
   const toolbar = el("div", { class: "toolbar" }),
     host = el("div", { class: "terminal-host" }),
@@ -43,7 +47,12 @@ export async function mount(w, c) {
   stream = reconnectingStream(c, `terminal/${id}`, {
     async beforeConnect() {
       const b = await c.call("terminal.list");
-      if (!b.terminals.some((t) => t.id === id)) {
+      const session = b.terminals.find((t) => t.id === id);
+      if (session?.alive === false) {
+        await closeTerminalViews(c, id);
+        return false;
+      }
+      if (!session) {
         status.textContent =
           "This process no longer exists. The server or its worker may have restarted. Open a new terminal to start a new process.";
         return false;
@@ -71,8 +80,7 @@ export async function mount(w, c) {
             status.textContent = "View only · use Take control to type";
         }
         if (b.alive === false)
-          status.textContent =
-            "Process ended · retained output · " + id.slice(-8);
+          closeTerminalViews(c, id).catch((e) => c.notify(e.message));
         if (b.error) c.notify(b.error);
       }
     },
@@ -111,7 +119,7 @@ export async function mount(w, c) {
     button("Stop process", async () => {
       if (await confirmAction("Terminate this terminal and its shell?")) {
         await c.call("terminal.stop", { id });
-        status.textContent = "Process terminated";
+        await closeTerminalViews(c, id);
       }
     }),
   );
