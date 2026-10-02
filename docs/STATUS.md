@@ -71,6 +71,13 @@ Installed HTTPS/PAM acceptance passed for the owner and a newly created unprivil
 
 ## Active session picker (post-alpha.5)
 
-Sessions now lists only running terminal/SSH sessions and offers a direct Stop button per row. Successful stops remove the row immediately; a background refresh every two seconds catches natural exits and stops from another view. Closing or cancelling the picker ends polling. Failed stop requests leave the session visible for retry. Jobs & Sessions also filters ended terminal entries; existing terminal windows may still show their retained output.
+Sessions now lists only running terminal/SSH sessions and offers a direct Stop button per row. Successful stops remove the row immediately; a background refresh every two seconds catches natural exits and stops from another view. Closing or cancelling the picker ends polling. Failed stop requests leave the session visible for retry. Jobs & Sessions also filters ended terminal entries. The subsequent window-lifecycle update below closes views when a session ends.
 
 Installed HTTPS/PAM acceptance passed with the owner and a disposable account: previously ended entries hidden, direct stop of only the selected session, failed-stop retry, natural shell exit disappearing while the picker remains open, empty state, reopening, Escape/close cleanup and no JavaScript errors. Stopped test processes were confirmed absent in /proc; original owner terminal PIDs were preserved across the immutable release update. All 28 Python and 6 JavaScript tests and the frontend build passed.
+
+
+## Terminal window lifecycle (post-alpha.5)
+
+Stopping a terminal session through Sessions, Jobs & Sessions or the terminal toolbar now closes its desktop views, including minimized windows, and removes taskbar/saved-layout entries. Server end notifications also close views on other connected devices and on natural shell exit. Reconnection to a known ended session closes its stale view; a transport failure alone preserves the window, and missing-worker diagnostics remain explicit. Closing a window with X still only detaches its live session.
+
+Installed HTTPS/PAM acceptance with a disposable account passed: visible and minimized views across two device layouts, Sessions Stop, toolbar Stop, taskbar/layout removal, X detach and same-session reattach, natural exit, offline preservation followed by stop from another device and reconnect cleanup, and reload without ended-window recovery. Actual UID and terminated process absence in /proc were verified; no JavaScript errors. All 28 Python and 6 JavaScript tests and the frontend build passed. The process-preserving updater retained the owner's running worker and terminal.
