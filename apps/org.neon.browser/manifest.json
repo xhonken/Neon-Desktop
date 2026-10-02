@@ -1,7 +1,7 @@
 {
   "id": "org.neon.browser",
   "name": "Browser",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.3",
   "category": "internet",
   "pinnable": true,
   "runtime": "core",

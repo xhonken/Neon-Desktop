@@ -4,6 +4,8 @@ import { el, button } from "./ui.js";
 import { WindowManager } from "./wm.js";
 import { connection, sessionPicker } from "./connection.js";
 const loaders = {
+  "org.neon.jobs": () => import("./apps/jobs.js"),
+  "org.neon.connections": () => import("./apps/connections.js"),
   "org.neon.files": () => import("./apps/files.js"),
   "org.neon.terminal": () => import("./apps/terminal.js"),
   "org.neon.code": () => import("./apps/code.js"),
@@ -24,6 +26,16 @@ export async function start(identity) {
     timer,
     restoring = true;
   const notices = [];
+  const storageKey = "neon-device-" + identity.uid;
+  let device = localStorage.getItem(storageKey);
+  if (!/^[a-f0-9-]{36}$/.test(device || "")) {
+    device = crypto.randomUUID();
+    localStorage.setItem(storageKey, device);
+  }
+  const client = crypto.randomUUID();
+  const deviceName =
+    localStorage.getItem(storageKey + "-name") ||
+    "Browser " + device.slice(0, 6);
   const link = connection(identity, notify);
   let pendingSave = false,
     saveQueue = Promise.resolve();
@@ -35,6 +47,7 @@ export async function start(identity) {
         headers: {
           "Content-Type": "application/json",
           "X-CSRF-Token": identity.csrf,
+          "X-Neon-Background": body?.background ? "1" : "0",
         },
         body: body ? JSON.stringify(body) : undefined,
         signal: AbortSignal.timeout(30000),
@@ -57,7 +70,8 @@ export async function start(identity) {
     if (!r.ok) throw Error(b.error || "Request failed");
     return b;
   }
-  const rpc = (app, action, args = {}) => api("rpc", { ...args, app, action });
+  const rpc = (app, action, args = {}) =>
+    api("rpc", { device, client, ...args, app, action });
   config = await rpc("org.neon.settings", "config.get");
   config.pins ??= [];
   config.shortcuts ??= [];
@@ -123,6 +137,9 @@ export async function start(identity) {
   });
   const context = {
     identity,
+    device,
+    client,
+    deviceName,
     apps,
     api,
     rpc,
@@ -327,6 +344,7 @@ export async function start(identity) {
     right,
   );
   right.append(
+    button("Jobs", () => open("org.neon.jobs"), "top-icon"),
     link.badge,
     button(
       "Sessions",

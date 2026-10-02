@@ -2,13 +2,14 @@
 
 import asyncio
 import os
+import re
 import secrets
 import time
 from pathlib import Path
 from urllib.parse import urlencode
 from aiohttp import web, ClientSession, UnixConnector, ClientTimeout, WSMsgType
 
-ROOT = Path("/opt/neon-desktop/dist")
+ROOT = Path(__file__).resolve().parents[1] / "dist"
 COOKIE = "__Host-neon"
 ORIGIN = os.environ["NEON_ORIGIN"]
 CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
@@ -26,6 +27,7 @@ async def main():
         return {
             "Authorization": "Bearer " + r.cookies.get(COOKIE, ""),
             "X-CSRF-Token": r.headers.get("X-CSRF-Token", ""),
+            "X-Neon-Background": r.headers.get("X-Neon-Background", "0"),
             "X-Client-IP": r.headers.get("X-Forwarded-For", "unknown")
             .split(",")[0]
             .strip(),
@@ -118,7 +120,7 @@ async def main():
         path = r.match_info["path"]
         if not any(a["id"] == appid and a["runtime"] == "sandbox" for a in me["apps"]):
             raise web.HTTPNotFound()
-        base = Path("/opt/neon-desktop/apps") / appid / "frontend"
+        base = Path(__file__).resolve().parents[1] / "apps" / appid / "frontend"
         file = (base / path).resolve()
         if not file.is_relative_to(base) or not file.is_file():
             raise web.HTTPNotFound()
@@ -186,7 +188,9 @@ async def main():
         await authorized(r)
         kind = r.match_info["kind"]
         sid = r.match_info["id"]
-        if kind not in ("terminal", "browser") or not sid.isalnum():
+        if kind not in ("terminal", "browser") or not re.fullmatch(
+            r"[a-zA-Z0-9_]{1,64}", sid
+        ):
             raise web.HTTPNotFound()
         try:
             downstream = await client.ws_connect(
@@ -196,7 +200,11 @@ async def main():
                 + sid
                 + "?"
                 + urlencode(
-                    {"app": r.query.get("app", ""), "csrf": r.query.get("csrf", "")}
+                    {
+                        "app": r.query.get("app", ""),
+                        "csrf": r.query.get("csrf", ""),
+                        "view": r.query.get("view", ""),
+                    }
                 ),
                 headers=headers(r),
                 max_msg_size=4 * 1024**2,

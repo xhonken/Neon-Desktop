@@ -47,3 +47,9 @@ Third-party modules are not imported into the desktop origin. A sandboxed iframe
 ## Dependencies
 
 Python/aiohttp is provided by Debian. Node/npm are development/build tooling and run the isolated Chromium controller. Bootstrap CSS loads once; CodeMirror/xterm code is lazily bundled. No Java service is required by this architecture.
+
+## Alpha.3 runtime generations
+
+Current code is selected by a root-owned immutable release symlink. Each new worker uses a generation-specific unit/socket and terminal ID; the broker discovers retained workers for the authenticated UID. Browser units retain their running process across code switches. Background jobs have separate transient systemd units and fixed unprivileged runners pinned to their release. Job commands are read only after Linux identity isolation.
+
+Device layouts use `desktop-<device UUID>.json`; SSH profiles remain nonsecret JSON. Imported encrypted keys live in `.ssh`; an agent in the private worker runtime holds temporarily unlocked identities. History and job output live beneath `~/.local/share/neon-desktop/`. These are explicit snapshots/job records, not a mirror of the filesystem.

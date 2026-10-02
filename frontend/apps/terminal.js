@@ -58,16 +58,21 @@ export async function mount(w, c) {
         "Connected · " +
         c.identity.username +
         " · " +
-        id.slice(0, 8) +
+        id.slice(-8) +
         " · kept running after sign-out";
     },
     message(e) {
       if (e.data instanceof ArrayBuffer) term.write(new Uint8Array(e.data));
       else {
         const b = JSON.parse(e.data);
+        if ("readonly" in b) {
+          term.options.disableStdin = b.readonly;
+          if (b.readonly)
+            status.textContent = "View only · use Take control to type";
+        }
         if (b.alive === false)
           status.textContent =
-            "Process ended · retained output · " + id.slice(0, 8);
+            "Process ended · retained output · " + id.slice(-8);
         if (b.error) c.notify(b.error);
       }
     },
@@ -112,26 +117,11 @@ export async function mount(w, c) {
   );
   if (c.app.id === "org.neon.terminal") {
     toolbar.append(
-      button("SSH profiles", async () => {
+      button("SSH connections", () => c.open("org.neon.connections")),
+      button("Take control", async () => {
         try {
-          let { hosts } = await c.call("ssh.list");
-          const name = await ask("Profile name (new or existing)");
-          if (!name) return;
-          let i = hosts.findIndex((h) => h.name === name);
-          if (i < 0) {
-            const host = await ask("Host");
-            if (!host) return;
-            const username = await ask("SSH username", c.identity.username);
-            if (!username) return;
-            const port = await ask("SSH port", "22");
-            if (!port) return;
-            const group = await ask("Group", "Servers");
-            if (group === null) return;
-            hosts.push({ name, host, username, port: Number(port), group });
-            await c.call("ssh.save", { hosts });
-            i = hosts.length - 1;
-          }
-          await c.open(c.app.id, { state: { kind: "ssh", profile: i } });
+          await c.call("terminal.claim", { id, client: c.client });
+          stream.reconnect();
         } catch (e) {
           c.notify(e.message);
         }

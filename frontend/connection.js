@@ -28,6 +28,7 @@ export function connection(identity, notify) {
     checking = (async () => {
       try {
         const r = await fetch("/api/v1/me", {
+          headers: { "X-Neon-Background": "1" },
           signal: AbortSignal.timeout(8000),
         });
         if (r.status === 401) {
@@ -160,7 +161,7 @@ export function reconnectingStream(c, path, handlers) {
       if (handlers.beforeConnect && !(await handlers.beforeConnect())) return;
       if (disposed) return;
       const current = new WebSocket(
-        `${location.origin.replace("https:", "wss:")}/api/v1/stream/${path}?app=${encodeURIComponent(c.app.id)}&csrf=${encodeURIComponent(c.identity.csrf)}`,
+        `${location.origin.replace("https:", "wss:")}/api/v1/stream/${path}?app=${encodeURIComponent(c.app.id)}&csrf=${encodeURIComponent(c.identity.csrf)}&view=${encodeURIComponent(c.client || "legacy")}`,
       );
       socket = current;
       current.binaryType = handlers.binaryType || "arraybuffer";
@@ -240,7 +241,7 @@ export async function sessionPicker(c) {
     );
     d.append(
       button(
-        `${t.alive ? "Running" : "Ended"} · ${t.id.slice(0, 8)}${existing ? " · open window" : ""}`,
+        `${t.alive ? "Running" : "Ended"} · ${t.id.slice(-8)}${existing ? " · open window" : ""}`,
         async () => {
           d.close();
           d.remove();

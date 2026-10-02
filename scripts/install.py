@@ -128,7 +128,14 @@ for f in (source / "deploy").glob("*.service"):
         "/usr/bin/node /opt/neon-desktop/neon/browser.mjs",
         str(node) + " /opt/neon-desktop/neon/browser.mjs",
     )
-    (Path("/etc/systemd/system") / f.name).write_text(text)
+    if f.name == "neon-worker@.service":
+        text = text.replace(
+            "RuntimeDirectory=neon-worker-%i", "RuntimeDirectory=neon-worker-g3-%i"
+        )
+        unit = "neon-worker-g3@.service"
+    else:
+        unit = f.name
+    (Path("/etc/systemd/system") / unit).write_text(text)
 shutil.copy2(source / "deploy/pam", "/etc/pam.d/neon-desktop")
 config = Path("/etc/neon-desktop")
 config.mkdir(mode=0o755, exist_ok=True)

@@ -75,10 +75,21 @@ async function launch(name) {
   await wait(500);
 }
 async function input(id, text) {
+  const client =
+    (await page.evaluate(
+      (id) =>
+        window.__sockets
+          .filter((s) => s.url.includes("/terminal/" + id))
+          .map((s) => new URL(s.url).searchParams.get("view"))
+          .filter(Boolean)
+          .at(-1),
+      id,
+    )) || "a1111111-1111-1111-1111-111111111111";
+  await rpc("org.neon.terminal", "terminal.claim", { id, client });
   await page.evaluate(
-    async ({ id, text, csrf }) => {
+    async ({ id, text, csrf, client }) => {
       const ws = new WebSocket(
-        `${location.origin.replace("https:", "wss:")}/api/v1/stream/terminal/${id}?app=org.neon.terminal&csrf=${encodeURIComponent(csrf)}`,
+        `${location.origin.replace("https:", "wss:")}/api/v1/stream/terminal/${id}?app=org.neon.terminal&csrf=${encodeURIComponent(csrf)}&view=${client}`,
       );
       await new Promise((resolve, reject) => {
         ws.onopen = resolve;
@@ -88,7 +99,7 @@ async function input(id, text) {
       await new Promise((r) => setTimeout(r, 100));
       ws.close();
     },
-    { id, text, csrf: me.csrf },
+    { id, text, csrf: me.csrf, client },
   );
 }
 async function read(path) {
@@ -113,7 +124,7 @@ try {
   await launch("Terminal");
   await page.waitForFunction(() =>
     [...document.querySelectorAll(".app-status")].some((e) =>
-      e.textContent.startsWith("Connected ·"),
+      /^(Connected ·|View only ·)/.test(e.textContent),
     ),
   );
   const initial = (await rpc("org.neon.terminal", "terminal.list")).terminals;
@@ -133,7 +144,7 @@ try {
   await page.waitForFunction(
     () =>
       [...document.querySelectorAll(".app-status")].some((e) =>
-        e.textContent.startsWith("Connected ·"),
+        /^(Connected ·|View only ·)/.test(e.textContent),
       ),
     { timeout: 25000 },
   );
@@ -174,7 +185,7 @@ try {
   await page.evaluate(
     (id) =>
       [...document.querySelectorAll(".session-picker button")]
-        .find((e) => e.textContent.includes(id.slice(0, 8)))
+        .find((e) => e.textContent.includes(id.slice(-8)))
         .click(),
     ssh,
   );
@@ -272,20 +283,20 @@ try {
   await page.waitForSelector(".session-picker");
   assert(
     (await page.$eval(".session-picker", (e) => e.textContent)).includes(
-      local.slice(0, 8),
+      local.slice(-8),
     ),
   );
   results.closedWindowReattachAvailable = true;
   await page.evaluate(
     (id) =>
       [...document.querySelectorAll(".session-picker button")]
-        .find((e) => e.textContent.includes(id.slice(0, 8)))
+        .find((e) => e.textContent.includes(id.slice(-8)))
         .click(),
     local,
   );
   await page.waitForFunction(() =>
     [...document.querySelectorAll(".app-status")].some((e) =>
-      e.textContent.startsWith("Connected ·"),
+      /^(Connected ·|View only ·)/.test(e.textContent),
     ),
   );
   assert.equal(

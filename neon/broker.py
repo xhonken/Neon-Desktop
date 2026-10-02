@@ -17,11 +17,12 @@ import time
 from collections import defaultdict, deque
 from pathlib import Path
 from aiohttp import web, ClientSession, UnixConnector, ClientTimeout, WSMsgType
+from .workbench import GENERATION, ROOT as RELEASE_ROOT, admit, resources
 
 LOG = logging.getLogger("neon.security")
 STATE = Path("/var/lib/neon-broker")
 RUNTIME = Path("/run/neon-broker")
-APPROOT = Path("/opt/neon-desktop/apps")
+APPROOT = RELEASE_ROOT / "apps"
 ALLOWED = {
     "user-files",
     "terminal",
@@ -33,7 +34,12 @@ ALLOWED = {
 }
 ACTION_PERMISSION = {
     "files.": "user-files",
+    "history.": "user-files",
+    "document.": "user-files",
+    "jobs.": "terminal",
+    "resources.": "system-information",
     "terminal.": "terminal",
+    "session.": "terminal",
     "ssh.": "ssh",
     "browser.": "network",
     "storage.": "user-files",
@@ -108,7 +114,7 @@ class Sessions:
         self.db.commit()
         return token, csrf
 
-    def get(self, token):
+    def get(self, token, touch=True):
         row = self.db.execute(
             "SELECT sid,uid,created,touched,expires,csrf,peer,principal FROM sessions WHERE token=?",
             (self.digest(token),),
@@ -121,11 +127,12 @@ class Sessions:
                 raise ValueError("Account changed")
         except (KeyError, ValueError, OSError):
             raise web.HTTPUnauthorized()
-        self.db.execute(
-            "UPDATE sessions SET touched=? WHERE token=?",
-            (time.time(), self.digest(token)),
-        )
-        self.db.commit()
+        if touch:
+            self.db.execute(
+                "UPDATE sessions SET touched=? WHERE token=?",
+                (time.time(), self.digest(token)),
+            )
+            self.db.commit()
         return dict(
             sid=row[0],
             uid=row[1],
@@ -219,18 +226,20 @@ async def main():
 
     def identify(request):
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-        s = sessions.get(token)
+        s = sessions.get(token, touch=request.headers.get("X-Neon-Background") != "1")
         if request.method not in ("GET", "HEAD") and not secrets.compare_digest(
             request.headers.get("X-CSRF-Token", ""), s["csrf"]
         ):
             raise web.HTTPForbidden()
         return token, s
 
-    async def activate(uid, browser=False):
-        key = ("browser" if browser else "worker", uid)
+    async def activate(uid, browser=False, kind=None):
+        key = (kind or ("browser" if browser else "worker-" + GENERATION), uid)
         path = f"/run/neon-{key[0]}-{uid}/api.sock"
         async with locks[key]:
             if not os.path.exists(path):
+                if browser:
+                    admit(pwd.getpwuid(uid).pw_dir, 512 * 1024**2)
                 proc = await asyncio.create_subprocess_exec(
                     "/usr/bin/systemctl",
                     "start",
@@ -248,8 +257,8 @@ async def main():
                 raise web.HTTPServiceUnavailable()
         return path
 
-    async def worker(uid, payload):
-        path = await activate(uid)
+    async def worker(uid, payload, kind=None):
+        path = await activate(uid, kind=kind)
         async with ClientSession(
             connector=UnixConnector(path=path), timeout=ClientTimeout(total=45)
         ) as c:
@@ -287,7 +296,7 @@ async def main():
                 raise ValueError()
             async with auth_slots:
                 proc = await asyncio.create_subprocess_exec(
-                    "/opt/neon-desktop/libexec/pam-auth",
+                    str(RELEASE_ROOT / "libexec/pam-auth"),
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.DEVNULL,
                     stderr=asyncio.subprocess.DEVNULL,
@@ -426,14 +435,198 @@ async def main():
             if not action.startswith("files.") or needed not in grants:
                 raise web.HTTPForbidden(text="Application permission denied")
 
+    def terminal_kind(id):
+        if re.fullmatch(r"[a-f0-9]{32}", id):
+            return "worker"
+        match = re.fullmatch(r"(g[a-f0-9]{1,16})_[a-f0-9]{32}", id)
+        if not match:
+            raise web.HTTPBadRequest()
+        return "worker-" + match[1]
+
+    async def unit_info(unit):
+        proc = await asyncio.create_subprocess_exec(
+            "/usr/bin/systemctl",
+            "show",
+            unit,
+            "--property=ActiveState,SubState,Result,MemoryCurrent,CPUUsageNSec,ExecMainStatus",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        out, _ = await proc.communicate()
+        return dict(
+            line.split("=", 1) for line in out.decode().splitlines() if "=" in line
+        )
+
     async def rpc(request):
         _, s = identify(request)
         body = await request.json()
         action = body.get("action", "")
-        permit(body.get("app"), action, s["uid"])
+        uid = s["uid"]
+        permit(body.get("app"), action, uid)
+        if action == "terminal.list":
+            items = []
+            paths = [
+                Path(f"/run/neon-worker-{uid}/api.sock"),
+                *Path("/run").glob(f"neon-worker-g*-{uid}/api.sock"),
+            ]
+            for path in paths:
+                kind = path.parent.name.removeprefix("neon-").removesuffix(
+                    "-" + str(uid)
+                )
+                if (
+                    not re.fullmatch(r"worker(?:-g[a-f0-9]{1,16})?", kind)
+                    or not path.exists()
+                ):
+                    continue
+                try:
+                    response = await worker(uid, body, kind)
+                    if response.status == 200:
+                        for t in json.loads(response.body)["terminals"]:
+                            t["generation"] = kind
+                            try:
+                                st = Path("/proc") / str(t["pid"]) / "status"
+                                values = dict(
+                                    x.split(":", 1)
+                                    for x in st.read_text().splitlines()
+                                    if ":" in x
+                                )
+                                t["memoryBytes"] = (
+                                    int(values.get("VmRSS", "0 kB").split()[0]) * 1024
+                                )
+                            except (KeyError, FileNotFoundError, PermissionError):
+                                pass
+                            items.append(t)
+                except (OSError, web.HTTPException):
+                    continue
+            labels = await worker(uid, {"action": "session.names"})
+            if labels.status == 200:
+                names = json.loads(labels.body)
+                for item in items:
+                    item["name"] = names.get(item["id"], item.get("name", "Terminal"))
+            return web.json_response({"terminals": items})
+        if action.startswith("terminal.") and body.get("id"):
+            kind = terminal_kind(body["id"])
+            if not Path(f"/run/neon-{kind}-{uid}/api.sock").exists():
+                raise web.HTTPNotFound()
+            return await worker(uid, body, kind)
+        if action == "jobs.create":
+            async with locks["admission"]:
+                home = pwd.getpwuid(uid).pw_dir
+                memory = int(body.get("memoryMiB", 512))
+                if not 128 <= memory <= 2048:
+                    raise web.HTTPBadRequest()
+                admit(home, memory * 1024**2)
+                active = list(
+                    Path("/sys/fs/cgroup/system.slice").glob("neon-job-*.service")
+                )
+                reserved = sum(
+                    int((p / "memory.max").read_text())
+                    for p in active
+                    if (p / "memory.max").exists()
+                    and (p / "memory.max").read_text().strip().isdigit()
+                )
+                if (
+                    len(active) >= 6
+                    or reserved + memory * 1024**2 > resources(home)["memoryTotal"] // 2
+                ):
+                    raise web.HTTPConflict(
+                        text="Job memory budget is reserved by existing jobs; wait or stop one of your jobs"
+                    )
+                response = await worker(uid, {**body, "action": "jobs.prepare"})
+                if response.status != 200:
+                    return response
+                job = json.loads(response.body)["id"]
+                if not re.fullmatch(r"[a-f0-9]{32}", job):
+                    raise web.HTTPBadRequest()
+                unit = f"neon-job-{uid}-{job}"
+                argv = [
+                    "/usr/bin/systemd-run",
+                    "--quiet",
+                    "--unit=" + unit,
+                    "--uid=" + str(uid),
+                    "--gid=" + str(pwd.getpwuid(uid).pw_gid),
+                    "--working-directory=" + str(RELEASE_ROOT),
+                    "-p",
+                    "NoNewPrivileges=yes",
+                    "-p",
+                    "CapabilityBoundingSet=",
+                    "-p",
+                    "ProtectSystem=strict",
+                    "-p",
+                    "ReadWritePaths=" + home,
+                    "-p",
+                    "PrivateTmp=yes",
+                    "-p",
+                    "ProtectControlGroups=yes",
+                    "-p",
+                    "MemoryMax=" + str(memory) + "M",
+                    "-p",
+                    "MemorySwapMax=128M",
+                    "-p",
+                    "CPUQuota=150%",
+                    "-p",
+                    "TasksMax=96",
+                    "-p",
+                    "UMask=0077",
+                    "-p",
+                    "KillMode=control-group",
+                    "-p",
+                    "TimeoutStopSec=10",
+                    "/usr/bin/python3",
+                    "-m",
+                    "neon.job_runner",
+                    job,
+                ]
+                proc = await asyncio.create_subprocess_exec(
+                    *argv,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                if await proc.wait():
+                    raise web.HTTPServiceUnavailable(
+                        text="Unable to launch isolated job"
+                    )
+                return web.json_response({"id": job})
+        if action.startswith("jobs."):
+            if action in ("jobs.stop", "jobs.delete"):
+                job = body.get("id", "")
+                if not re.fullmatch(r"[a-f0-9]{32}", job):
+                    raise web.HTTPBadRequest()
+                unit = f"neon-job-{uid}-{job}.service"
+                info = await unit_info(unit)
+                if action == "jobs.delete" and info.get("ActiveState") in (
+                    "active",
+                    "activating",
+                ):
+                    raise web.HTTPConflict(text="Stop the job before deleting it")
+                if action == "jobs.stop":
+                    proc = await asyncio.create_subprocess_exec(
+                        "/usr/bin/systemctl",
+                        "stop",
+                        unit,
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    await proc.wait()
+                    return web.json_response({"ok": True})
+            response = await worker(uid, body)
+            if action == "jobs.list" and response.status == 200:
+                data = json.loads(response.body)
+                for job in data["jobs"]:
+                    if not re.fullmatch(r"[a-f0-9]{32}", job.get("id", "")):
+                        continue
+                    info = await unit_info(f"neon-job-{uid}-{job['id']}.service")
+                    job["resources"] = info
+                    if job["status"] in ("running", "queued") and info.get(
+                        "ActiveState"
+                    ) not in ("active", "activating"):
+                        job["status"] = "interrupted"
+                        job["reason"] = info.get("Result", "process no longer exists")
+                return web.json_response(data)
+            return response
         if action.startswith("browser."):
-            await activate(s["uid"], True)
-        return await worker(s["uid"], body)
+            await activate(uid, True)
+        return await worker(uid, body)
 
     async def stream(request):
         token, s = identify(request)
@@ -445,12 +638,23 @@ async def main():
             raise web.HTTPForbidden()
         if kind not in ("terminal", "browser"):
             raise web.HTTPNotFound()
-        path = await activate(s["uid"], kind == "browser")
+        if kind == "terminal":
+            worker_kind = terminal_kind(request.match_info["id"])
+            path = f"/run/neon-{worker_kind}-{s['uid']}/api.sock"
+            if not Path(path).exists():
+                raise web.HTTPNotFound(text="Terminal process no longer exists")
+        else:
+            path = await activate(s["uid"], True)
         ws = web.WebSocketResponse(heartbeat=25, max_msg_size=131072)
         await ws.prepare(request)
         endpoint = (
             "/stream" if kind == "browser" else "/terminal/" + request.match_info["id"]
         )
+        if kind == "terminal" and request.query.get("view"):
+            view = request.query["view"]
+            if not re.fullmatch(r"[a-f0-9-]{36}", view):
+                raise web.HTTPBadRequest()
+            endpoint += "?view=" + view
         async with ClientSession(connector=UnixConnector(path=path)) as c:
             async with c.ws_connect(
                 "http://worker" + endpoint, max_msg_size=4 * 1024 * 1024
@@ -466,7 +670,7 @@ async def main():
 
                 async def outgoing():
                     async for m in downstream:
-                        sessions.get(token)
+                        sessions.get(token, touch=False)
                         if m.type == WSMsgType.TEXT:
                             await ws.send_str(m.data)
                         elif m.type == WSMsgType.BINARY:

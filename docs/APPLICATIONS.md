@@ -54,3 +54,26 @@ Other third-party actions fail closed. Third-party `network`, `terminal`, `ssh`,
 - `GET /api/v1/stream/browser/view`: authorized Chromium WebSocket.
 
 Mutations require exact Origin, application/json and X-CSRF-Token. WebSockets require exact Origin, valid session and CSRF query value. Do not log stream query strings. These development interfaces are versioned but not declared stable until the first beta.
+
+## Core workbench RPCs (alpha.3)
+
+These extend the authenticated core API; they are not additional third-party grants.
+
+| Action | Important arguments / result | Capability |
+| --- | --- | --- |
+| `ssh.list/save` | `hosts`: id, name, host, port, username, group, auth, key, persistent, session; no secret fields | ssh |
+| `ssh.import` | name beginning `neon_`, data containing an encrypted OpenSSH private key | ssh |
+| `ssh.keys/public` | key filenames/agent fingerprints or public key text | ssh |
+| `ssh.unlock/lock` | key, transient passphrase, seconds60–28800; lock removes agent identities | ssh |
+| `terminal.create` | kind shell/ssh/text; SSH profile stable id (legacy integer index accepted) | terminal |
+| `terminal.list/claim/stop` | id; claim also requires per-view UUID client; list merges retained generations | terminal |
+| `session.rename` | id, name | terminal |
+| `jobs.create` | name, command, HOME-relative cwd, memoryMiB128–2048; returns id | terminal |
+| `jobs.list/log/stop/delete` | own job id where applicable; delete only inactive jobs | terminal |
+| `resources.info` | available memory/disk, warnings | system-information |
+| `history.list/read/restore` | path, version id; restore requires expected revision and client | user-files |
+| `history.settings` | optional value: enabled, exclude patterns, versions1–20 | user-files |
+| `document.lease` | path, client UUID, device name; optional takeover/release | user-files |
+| `config.get/save` | optional device UUID selects independent desktop config | core configuration |
+
+Terminal streams add `view=<client UUID>`; older clients omitting this remain supported. Background polling sends `X-Neon-Background: 1` so it does not renew web idle expiry. User actions use the normal activity path. Client-selected UID/unit/executable fields never select privileged execution identity. The broker starts a fixed job runner after selecting the authenticated UID; the runner executes the command without root authority.

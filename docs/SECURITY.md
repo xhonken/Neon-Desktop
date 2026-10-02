@@ -42,3 +42,7 @@ Before public release, the owner must provide a real private security contact an
 ## Session retention
 
 Authentication remains expiring/revocable. Reattaching always requires a currently valid web session belonging to the same Linux UID; retention does not grant anonymous access. Reauthentication holds the current document behind a modal and binds the resume flow to the original Linux username/UID. Editor recovery files use the existing HOME API (mode0600, symlink/hardlink protections); they may contain private source text and are not public application state. Ordinary frontend-only plugins cannot keep JavaScript executing after their client document closes. See SESSION_RECOVERY.md.
+
+## Alpha.3 workbench boundaries
+
+SSH unlock uses a same-UID private ssh-agent, TTL, and nonce/peer-checked Unix askpass transport; encrypted key import and no persistent passphrase storage are described in WORKBENCH.md. Background jobs are direct argv execution as the authenticated UID inside a separate cgroup. Input takeover/editing leases coordinate trusted views of the same Linux account; they do not revoke that user's OS file authority. History/drafts are private but may contain source secrets: review exclusions and protect HOME/backups. Immutable release switching preserves active processes; older workers remain on their previous security implementation until explicitly retired at an idle maintenance opportunity.

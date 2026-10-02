@@ -1,0 +1,21 @@
+{
+  "id": "org.neon.jobs",
+  "name": "Jobs & Sessions",
+  "version": "0.1.0-alpha.3",
+  "category": "system",
+  "pinnable": true,
+  "runtime": "core",
+  "icon": "\u25f4",
+  "window": {
+    "width": 980,
+    "height": 700,
+    "minWidth": 550,
+    "minHeight": 350,
+    "resizable": true
+  },
+  "permissions": [
+    "terminal",
+    "system-information",
+    "notifications"
+  ]
+}

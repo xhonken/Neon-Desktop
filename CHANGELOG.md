@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-alpha.3 — unreleased
+
+Adds Jobs & Sessions with named retained terminals, independent resource-limited background jobs, bounded durable logs and completion status. Adds SSH Connections with named/grouped profiles, encrypted OpenSSH key import, temporary private-agent unlock and optional remote tmux reattachment. Passwords and passphrases are never saved in profiles.
+
+Desktop layouts are device-specific, terminal input has explicit control transfer, Code has editing leases and per-view drafts, and bounded file history supports comparison, exclusions and revision-checked restoration. Immutable generation-based updates retain running worker/browser/job processes, expose inventory and defer unsafe rollback. See WORKBENCH.md and UPDATES.md for exact limits.
+
 ## 0.1.0-alpha.2 — unreleased
 
 Browser disconnect and web logout now retain server sessions. Terminal and browser transports reconnect automatically with current authentication; expired login is renewed in place without discarding the desktop. A Server sessions picker reattaches existing/ended terminals even after their windows are closed. Chromium no longer has a disconnected idle termination timer. Stop process and End session remain explicit termination actions.

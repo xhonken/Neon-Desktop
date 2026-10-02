@@ -99,7 +99,13 @@ async def main():
             )[0] == 403
             # The unprivileged gateway cannot open a worker socket directly.
             script = "import socket; s=socket.socket(socket.AF_UNIX); s.connect(%r)" % (
-                "/run/neon-worker-" + str(a.pw_uid) + "/api.sock"
+                str(
+                    next(
+                        Path("/run").glob(
+                            "neon-worker-g*-" + str(a.pw_uid) + "/api.sock"
+                        )
+                    )
+                )
             )
             r = subprocess.run(
                 ["runuser", "-u", "neon-gateway", "--", "python3", "-c", script],
@@ -139,7 +145,13 @@ async def main():
             )
     finally:
         subprocess.run(
-            ["systemctl", "stop", f"neon-worker@{a.pw_uid}.service"], check=False
+            [
+                "systemctl",
+                "stop",
+                f"neon-worker@{a.pw_uid}.service",
+                f"neon-worker-g*@{a.pw_uid}.service",
+            ],
+            check=False,
         )
         subprocess.run(["userdel", "-r", name], check=True)
 

@@ -4,12 +4,14 @@ Uses a disposable Linux account and loopback-only SSH/HTTP fixtures. Never chang
 the host SSH policy or persists the generated account password.
 """
 
-import os, pathlib, pwd, secrets, subprocess, sys, socket, tempfile, time, threading
+import os, pathlib, pwd, secrets, subprocess, sys, socket, tempfile, time, threading, json
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives import serialization
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-if os.geteuid() != 0 or len(sys.argv) != 3:
+if os.geteuid() != 0 or len(sys.argv) not in (3, 4):
     raise SystemExit(
-        "Usage (root): live_persistence.py HTTPS_ORIGIN CONTROLLER_LINUX_USER"
+        "Usage (root): live_persistence.py HTTPS_ORIGIN CONTROLLER_LINUX_USER [editor]"
     )
 controller = sys.argv[2]
 if pwd.getpwnam(controller).pw_uid < 1000:
@@ -30,8 +32,26 @@ class Fixture(BaseHTTPRequestHandler):
 
 web = ThreadingHTTPServer(("127.0.0.1", 0), Fixture)
 threading.Thread(target=web.serve_forever, daemon=True).start()
-name = "neon-retain-" + secrets.token_hex(3)
+name = "neon-work-" + secrets.token_hex(3)
 password = secrets.token_urlsafe(24)
+passphrase = secrets.token_urlsafe(32)
+key = Ed25519PrivateKey.generate()
+private = key.private_bytes(
+    serialization.Encoding.PEM,
+    serialization.PrivateFormat.OpenSSH,
+    serialization.BestAvailableEncryption(passphrase.encode()),
+).decode()
+wrong_public = (
+    Ed25519PrivateKey.generate()
+    .public_key()
+    .public_bytes(serialization.Encoding.OpenSSH, serialization.PublicFormat.OpenSSH)
+    .decode()
+)
+public = (
+    key.public_key()
+    .public_bytes(serialization.Encoding.OpenSSH, serialization.PublicFormat.OpenSSH)
+    .decode()
+)
 uid = None
 daemon = None
 temp = tempfile.TemporaryDirectory(prefix="neon-ssh-test-")
@@ -49,25 +69,8 @@ try:
     ssh = home / ".ssh"
     ssh.mkdir(mode=0o700)
     os.chown(ssh, uid, pwd.getpwnam(name).pw_gid)
-    subprocess.run(
-        [
-            "runuser",
-            "-u",
-            name,
-            "--",
-            "ssh-keygen",
-            "-q",
-            "-t",
-            "ed25519",
-            "-N",
-            "",
-            "-f",
-            str(ssh / "id_ed25519"),
-        ],
-        check=True,
-    )
     for file, data in [
-        ("authorized_keys", (ssh / "id_ed25519.pub").read_text()),
+        ("authorized_keys", public + "\n"),
         (
             "known_hosts",
             f"[127.0.0.1]:{port} "
@@ -96,19 +99,42 @@ try:
             controller,
             "--",
             "/opt/neon-node/bin/node",
-            str(source / "scripts/persistence-check.mjs"),
+            str(
+                source
+                / (
+                    "scripts/editor-check.mjs"
+                    if len(sys.argv) == 4 and sys.argv[3] == "editor"
+                    else "scripts/workbench-check.mjs"
+                )
+            ),
             sys.argv[1],
             name,
             str(port),
             f"http://127.0.0.1:{web.server_port}/",
         ],
-        input=password + "\n",
+        input=json.dumps(
+            {
+                "password": password,
+                "passphrase": passphrase,
+                "privateKey": private,
+                "wrongPublicKey": wrong_public,
+            }
+        )
+        + "\n",
         text=True,
         capture_output=True,
-        timeout=200,
+        timeout=240,
         cwd=source,
     )
-    password = None
+    for f in (home / ".config/neon-desktop").glob("*.json"):
+        content = f.read_text()
+        assert (
+            password not in content
+            and passphrase not in content
+            and private not in content
+        ), "Secret persisted in configuration"
+    print("Profile/config secret scan PASS")
+    password = passphrase = private = None
     print(result.stdout)
     print(result.stderr, file=sys.stderr)
     if result.returncode:
@@ -130,6 +156,17 @@ finally:
             ["runuser", "-u", name, "--", "tmux", "kill-server"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        # Only this disposable account: clean detached SSH/tmux descendants and test unit state.
+        subprocess.run(["pkill", "-KILL", "-u", str(uid)], check=False)
+        subprocess.run(
+            [
+                "systemctl",
+                "reset-failed",
+                f"neon-worker-g*@{uid}.service",
+                f"neon-job-{uid}-*.service",
+            ],
             check=False,
         )
     if daemon is not None:

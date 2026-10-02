@@ -12,5 +12,5 @@ test("all core manifests are complete and identities unique", () => {
     assert(a.window.minWidth >= 350);
     assert(Array.isArray(a.permissions));
   }
-  assert.equal(ids.size, 7);
+  assert.equal(ids.size, 9);
 });

@@ -48,7 +48,7 @@ def clean(path):
     if any(p in (".ssh", ".gnupg") for p in parts):
         # Dedicated key management will own these; terminal still follows Linux rights.
         raise PermissionError("Use a terminal for key material")
-    return "." if path in ("", ".") else path
+    return "/".join(p for p in parts if p not in ("", ".")) or "."
 
 
 class HomeFS:

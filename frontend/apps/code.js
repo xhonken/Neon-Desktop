@@ -1,5 +1,5 @@
 import { EditorView, basicSetup } from "codemirror";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Compartment } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { indentUnit } from "@codemirror/language";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -18,6 +18,9 @@ export async function mount(w, c) {
   const docs = [];
   const previousPaths = [...(w.state.paths || [])];
   const previousRecovery = w.state.editorRecovery;
+  // Each live view writes its own draft; another device cannot overwrite it.
+  w.state.editorRecovery = crypto.randomUUID();
+  const editability = new Compartment();
   if (!/^[a-f0-9-]{36}$/.test(w.state.editorRecovery || ""))
     w.state.editorRecovery = crypto.randomUUID();
   const recoveryPath =
@@ -48,6 +51,10 @@ export async function mount(w, c) {
       doc: doc.text,
       extensions: [
         basicSetup,
+        editability.of([
+          EditorView.editable.of(!doc.readonly),
+          EditorState.readOnly.of(!!doc.readonly),
+        ]),
         oneDark,
         language(doc.path),
         indentUnit.of(" ".repeat(c.config.tabWidth || 4)),
@@ -174,6 +181,9 @@ export async function mount(w, c) {
       });
     switching = false;
     renderTabs();
+    if (doc.readonly)
+      status.textContent =
+        "View only · another view is editing this file. Use Take editing control.";
     view.focus();
     persist();
   }
@@ -184,7 +194,13 @@ export async function mount(w, c) {
       return;
     }
     const b = await c.call("files.read", { path });
+    const lease = await c.call("document.lease", {
+      path,
+      client: c.client,
+      name: c.deviceName,
+    });
     const doc = {
+      readonly: !lease.acquired,
       path,
       text: decoder.decode(unbase64(b.data)),
       dirty: false,
@@ -274,8 +290,60 @@ export async function mount(w, c) {
       container.append(row);
     }
   }
+  async function refreshLeases(takeover = false) {
+    for (const d of docs.filter((d) => d.path)) {
+      const lease = await c.call("document.lease", {
+        path: d.path,
+        client: c.client,
+        name: c.deviceName,
+        takeover: takeover && d === active,
+        background: !takeover,
+      });
+      d.readonly = !lease.acquired;
+      if (d === active && view) {
+        view.dispatch({
+          effects: editability.reconfigure([
+            EditorView.editable.of(!d.readonly),
+            EditorState.readOnly.of(d.readonly),
+          ]),
+        });
+        if (d.readonly)
+          status.textContent =
+            "View only · another view controls this document";
+      }
+    }
+  }
+  const leaseTimer = setInterval(() => refreshLeases().catch(() => {}), 15000);
   const run = (fn) => () => fn().catch((e) => c.notify(e.message));
   toolbar.append(
+    button(
+      "Take editing control",
+      run(async () => {
+        if (
+          await confirmAction(
+            "Take editing control from another view? Its unsaved draft will stay there.",
+          )
+        )
+          await refreshLeases(true);
+      }),
+    ),
+    button(
+      "History",
+      run(async () => {
+        const module = await import("../history.js");
+        await module.show(active?.path, c, async () => {
+          const path = active.path;
+          const b = await c.call("files.read", { path });
+          active.text = decoder.decode(unbase64(b.data));
+          active.revision = b.revision;
+          active.dirty = false;
+          active.state = makeState(active);
+          view.setState(active.state);
+          renderTabs();
+          persist();
+        });
+      }),
+    ),
     button("New", () => {
       const doc = { path: "", text: "", dirty: false };
       docs.push(doc);
@@ -327,7 +395,9 @@ export async function mount(w, c) {
   let recovered;
   if (previousRecovery) {
     try {
-      const b = await c.call("files.read", { path: recoveryPath });
+      const b = await c.call("files.read", {
+        path: ".config/neon-desktop/editor-" + previousRecovery + ".json",
+      });
       const draft = JSON.parse(decoder.decode(unbase64(b.data)));
       if (
         draft.version !== 1 ||
@@ -362,7 +432,14 @@ export async function mount(w, c) {
           continue;
         }
       }
-      docs.push({ ...d, dirty: !!d.dirty });
+      const lease = d.path
+        ? await c.call("document.lease", {
+            path: d.path,
+            client: c.client,
+            name: c.deviceName,
+          })
+        : { acquired: true };
+      docs.push({ ...d, dirty: !!d.dirty, readonly: !lease.acquired });
     }
     if (docs.length)
       select(
@@ -409,6 +486,14 @@ export async function mount(w, c) {
     return true;
   };
   w.cleanup = () => {
+    clearInterval(leaseTimer);
+    for (const d of docs.filter((d) => d.path))
+      c.call("document.lease", {
+        path: d.path,
+        client: c.client,
+        release: true,
+        background: true,
+      }).catch(() => {});
     closed = true;
     clearTimeout(draftTimer);
     reconnectOff();

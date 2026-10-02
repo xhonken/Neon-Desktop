@@ -17,12 +17,18 @@ import time
 import uuid
 from pathlib import Path
 from aiohttp import web, ClientSession, UnixConnector, ClientTimeout, WSMsgType
-from .fs import HomeFS
+from .fs import HomeFS, clean
+from .workbench import Workbench, GENERATION, ROOT, admit, ssh_argv
 
 
 class Terminal:
     def __init__(self, argv, env):
-        self.id = uuid.uuid4().hex
+        self.id = GENERATION + "_" + uuid.uuid4().hex
+        self.created = time.time()
+        self.name = "Terminal"
+        self.kind = "shell"
+        self.host = ""
+        self.owner = None
         self.clients = set()
         self.buffer = bytearray()
         self.last = time.monotonic()
@@ -30,7 +36,7 @@ class Terminal:
         fd, slave = os.openpty()
         try:
             self.process = subprocess.Popen(
-                ["/opt/neon-desktop/libexec/pty-launch", *argv],
+                [str(ROOT / "libexec/pty-launch"), *argv],
                 stdin=slave,
                 stdout=slave,
                 stderr=slave,
@@ -124,6 +130,8 @@ async def main():
     )
     fs = HomeFS(a.pw_dir)
     terminals = {}
+    runtime = f"/run/neon-worker-{GENERATION}-{a.pw_uid}"
+    workbench = Workbench(fs, a, runtime)
     asyncio.get_running_loop().add_signal_handler(
         signal.SIGCHLD, lambda: [t.process.poll() for t in terminals.values()]
     )
@@ -178,8 +186,22 @@ async def main():
 
     async def rpc(request):
         b = await request.json()
+        if b.get("action") in (
+            "files.write",
+            "history.restore",
+            "ssh.save",
+            "config.save",
+        ):
+            async with write_lock:
+                return await handle(b)
+        return await handle(b)
+
+    async def handle(b):
         action = b.get("action")
-        path = b.get("path", ".")
+        extra = await workbench.dispatch(b)
+        if extra is not None:
+            return web.json_response(extra)
+        path = clean(b.get("path", "."))
         if action == "files.list":
             result = {"entries": await asyncio.to_thread(fs.list, path)}
         elif action == "files.read":
@@ -190,10 +212,31 @@ async def main():
             }
         elif action == "files.write":
             data = base64.b64decode(b["data"], validate=True)
-            async with write_lock:
-                await asyncio.to_thread(
-                    fs.write, path, data, b.get("exclusive", False), b.get("expected")
+            lease = workbench.leases.get(path)
+            if (
+                lease
+                and lease["until"] > time.monotonic()
+                and b.get("client") != lease["client"]
+            ):
+                raise ValueError(
+                    "This file is being edited in another view; take control or save as another file"
                 )
+            try:
+                previous = await asyncio.to_thread(fs.read, path)
+                if (
+                    b.get("expected") is not None
+                    and hashlib.sha256(previous).hexdigest() != b["expected"]
+                ):
+                    raise ValueError(
+                        "File changed on disk; reopen or save under a new name"
+                    )
+                if not b.get("exclusive"):
+                    await asyncio.to_thread(workbench.history, path, previous)
+            except FileNotFoundError:
+                pass
+            await asyncio.to_thread(
+                fs.write, path, data, b.get("exclusive", False), b.get("expected")
+            )
             result = {"ok": True, "revision": hashlib.sha256(data).hexdigest()}
         elif action == "files.mkdir":
             await asyncio.to_thread(fs.mkdir, path)
@@ -222,71 +265,62 @@ async def main():
                 raise ValueError("Expected object")
             fs.write(config + "/desktop.json", json.dumps(b["value"]).encode())
             result = {"ok": True}
-        elif action == "ssh.list":
-            result = {"hosts": read_config("ssh-hosts", [])}
-        elif action == "ssh.save":
-            hosts = b["hosts"]
-            if not isinstance(hosts, list) or len(hosts) > 100:
-                raise ValueError("Too many profiles")
-            clean = []
-            for h in hosts:
-                host = h.get("host", "")
-                username = h.get("username", "")
-                port = int(h.get("port", 22))
-                if (
-                    not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.:_-]{0,252}", host)
-                    or not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", username)
-                    or not 1 <= port <= 65535
-                ):
-                    raise ValueError("Invalid SSH destination")
-                clean.append(
-                    dict(
-                        name=str(h.get("name", ""))[:80],
-                        group=str(h.get("group", ""))[:80],
-                        host=host,
-                        username=username,
-                        port=port,
-                    )
-                )
-            fs.write(config + "/ssh-hosts.json", json.dumps(clean).encode())
-            result = {"ok": True}
         elif action == "terminal.list":
             result = {
-                "terminals": [dict(id=t.id, alive=t.alive) for t in terminals.values()]
+                "terminals": [
+                    dict(
+                        id=t.id,
+                        alive=t.alive,
+                        pid=t.pid,
+                        name=t.name,
+                        kind=t.kind,
+                        host=t.host,
+                        created=t.created,
+                        attached=len(t.clients),
+                        owner=t.owner,
+                        exitCode=t.process.poll(),
+                    )
+                    for t in terminals.values()
+                ]
             }
         elif action == "terminal.create":
             if len([t for t in terminals.values() if t.alive]) >= 8:
                 raise ValueError("Terminal limit reached")
+            admit(a.pw_dir)
             kind = b.get("kind", "shell")
             argv = [a.pw_shell, "-l"]
             if kind == "text":
                 argv = ["/usr/bin/w3m", "https://www.debian.org"]
             elif kind == "ssh":
-                hosts = read_config("ssh-hosts", [])
-                h = hosts[int(b["profile"])]
-                argv = [
-                    "/usr/bin/ssh",
-                    "-o",
-                    "StrictHostKeyChecking=ask",
-                    "-o",
-                    "ForwardAgent=no",
-                    "-o",
-                    "ClearAllForwardings=yes",
-                    "-p",
-                    str(h["port"]),
-                    "-l",
-                    h["username"],
-                    "--",
-                    h["host"],
-                ]
+                profile = workbench.selected_profile(b)
+                argv = ssh_argv(profile, a.pw_dir)
             elif kind != "shell":
                 raise ValueError("Invalid terminal kind")
             ended = [k for k, t in terminals.items() if not t.alive and not t.clients]
             for k in ended[:-16]:
                 terminals.pop(k)
-            t = Terminal(argv, dict(os.environ))
+            env = dict(os.environ)
+            if kind == "ssh":
+                env.update(await workbench.agent_env())
+            t = Terminal(argv, env)
+            t.kind = kind
+            t.name = (
+                profile["name"]
+                if kind == "ssh"
+                else ("Text browser" if kind == "text" else "Local terminal")
+            )
+            t.host = profile["host"] if kind == "ssh" else ""
             terminals[t.id] = t
             result = {"id": t.id, "alive": True}
+        elif action == "terminal.claim":
+            client = str(b.get("client", ""))
+            if not re.fullmatch(r"[a-f0-9-]{36}", client):
+                raise ValueError("Invalid view identity")
+            terminals[b["id"]].owner = client
+            result = {"ok": True}
+        elif action == "terminal.rename":
+            terminals[b["id"]].name = str(b["name"])[:80]
+            result = {"ok": True}
         elif action == "terminal.stop":
             terminals[b["id"]].terminate()
             result = {"ok": True}
@@ -307,10 +341,15 @@ async def main():
         t = terminals.get(request.match_info["id"])
         if not t:
             raise web.HTTPNotFound(text="Terminal process does not exist")
+        client = request.query.get("view", "legacy")
+        if client != "legacy" and not re.fullmatch(r"[a-f0-9-]{36}", client):
+            raise web.HTTPBadRequest()
+        if t.owner is None:
+            t.owner = client
         ws = web.WebSocketResponse(heartbeat=25, max_msg_size=65536)
         await ws.prepare(request)
         await ws.send_bytes(bytes(t.buffer))
-        await ws.send_json({"alive": t.alive})
+        await ws.send_json({"alive": t.alive, "readonly": t.owner != client})
         q = asyncio.Queue(maxsize=32)
         t.clients.add(q)
 
@@ -328,9 +367,17 @@ async def main():
                 t.last = time.monotonic()
                 if msg.type == WSMsgType.TEXT:
                     b = json.loads(msg.data)
-                    if b.get("type") == "resize":
+                    if b.get("type") == "resize" and t.owner == client:
                         t.resize(b["cols"], b["rows"])
                     elif b.get("type") == "input" and t.alive:
+                        if t.owner != client:
+                            await ws.send_json(
+                                {
+                                    "readonly": True,
+                                    "error": "Another view controls this terminal; use Take control",
+                                }
+                            )
+                            continue
                         data = b.get("data", "").encode()
                         if len(data) <= 32768:
                             try:
@@ -349,7 +396,7 @@ async def main():
     app.add_routes([web.post("/rpc", rpc), web.get("/terminal/{id}", terminal)])
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
-    path = Path(f"/run/neon-worker-{a.pw_uid}/api.sock")
+    path = Path(runtime) / "api.sock"
     path.unlink(missing_ok=True)
     await web.UnixSite(runner, str(path)).start()
     os.chmod(path, 0o600)
