@@ -1,7 +1,7 @@
 {
   "id": "org.neon.jobs",
   "name": "Jobs & Sessions",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "category": "system",
   "pinnable": true,
   "runtime": "core",

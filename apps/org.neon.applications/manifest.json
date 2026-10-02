@@ -1,7 +1,7 @@
 {
   "id": "org.neon.applications",
-  "name": "Applications",
-  "version": "0.1.0-alpha.3",
+  "name": "App Center",
+  "version": "0.1.0-alpha.4",
   "category": "system",
   "pinnable": true,
   "runtime": "core",

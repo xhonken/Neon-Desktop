@@ -1,4 +1,4 @@
-# Implementation status — 0.1.0-alpha.3
+# Implementation status — 0.1.0-alpha.4
 
 This is a working first alpha, not completion of the full project plan. The working product name is Neon Desktop. It is independently implemented; no Pi-2000 source or migration layer is included.
 
@@ -18,10 +18,10 @@ The following were verified on a Raspberry Pi 5, 8 GB, ARM64, Debian 13 / Raspbe
 | Editor | CodeMirror 6, tabs and reordering, tree, unsaved indicator, syntax, search/replace, undo, save/save-as | Real edit and Ctrl+S save; revision conflict and existing executable-mode tests |
 | Graphical browser | Server-side Chromium, per-user persistent profile, screenshot/input stream, normal sandbox, pipe-only CDP, retained while disconnected | Actual navigation/stream; kernel cgroup files, UID, renderer seccomp, no --no-sandbox |
 | Settings | Appearance/accent/scale, desktop recovery/snapping, pins, account metadata, session security, terminal/editor preferences, accessibility, clock, filesystem capacity | Opened through installed desktop; settings saved in user config |
-| Applications | Nine core manifests, App Manager, root-only frontend package installer, sandbox SDK with explicit limited grants/revocation | Opaque-origin DOM/cookie isolation, notification grant, denied undeclared files and forged core app/action identity |
+| Applications | Nine core apps including App Center; Git catalog, personal and global stores, sandbox SDK and revision-bound grants | Actual HTTPS Git/PAM/GUI install, update, uninstall; two-user visibility/ownership, stale asset/grant rejection; real catalog intentionally empty |
 | Deployment | Caddy, systemd units, PAM policy, installer, source package tool and CI definition | Real host reboot, automatic gateway/broker startup, verified TLS from another LAN host |
 
-Automated baseline: **22 Python tests and 6 JavaScript tests pass**. Both installed graphical suites and the disposable second-account isolation suite pass. The installed Node runtime is 24.21.0; Puppeteer is pinned to 25.12.0. npm audit reported zero known vulnerabilities at verification time; this is a time-specific dependency check, not a security certification. GitHub Actions has not run remotely because this repository has not been published.
+Automated baseline: **28 Python tests and 6 JavaScript tests pass**. Both installed graphical suites and the disposable second-account isolation suite pass. The installed Node runtime is 24.21.0; Puppeteer is pinned to 25.12.0. npm audit reported zero known vulnerabilities at verification time; this is a time-specific dependency check, not a security certification. GitHub Actions has not run remotely because this repository has not been published.
 
 On Raspberry Pi OS the memory cgroup controller had to be enabled in the boot command line and verified after a real reboot. The installer and broker now fail closed if it is unavailable. Actual browser limits: 1 GiB memory.high, 1.5 GiB memory.max, 256 MiB memory.swap.max, 150% CPU and 160 tasks. A live 13-process Chromium session ran as the intended UID with renderer seccomp and no OOM events during the recorded check.
 
@@ -48,3 +48,9 @@ The installed HTTPS UI was exercised with forced client offline/closed WebSocket
 See [WORKBENCH.md](WORKBENCH.md) for the six operational improvements and saved SSH profiles, and [UPDATES.md](UPDATES.md) for immutable deployment. Installed HTTPS acceptance on the development Pi passed: encrypted-key import and actual agent unlock/expiry, named/grouped profile UI, real OpenSSH and tmux transport-loss recovery with the same remote PID, changed-host-key refusal, terminal control transfer, separate managed-job UID/cgroup/log/exit/stop behavior across logout, bounded logs, file-history exclusions/revision conflicts, graphical comparison/restore, two live editor views with takeover and preserved drafts, and independent device configuration. The earlier full persistence suite and disposable second-account isolation suite also pass. No JavaScript page errors were observed.
 
 Process-preserving release switches retained the owner's existing worker and Chromium PIDs. Idle-only update and rollback correctly deferred with live terminals. An actual rollback switch remains unperformed on this occupied host; its guard was tested without terminating work. A fresh installation on a second OS and broader upgrade compatibility remain release gates. These results do not imply completion of the full project plan or production readiness.
+
+## App Center update (alpha.4)
+
+The installed HTTPS desktop passed the complete Git lifecycle with a loopback smart HTTPS Git repository and two disposable PAM users: administrator catalog sync, global CLI installation, personal graphical installation/update/uninstall, same-document launcher refresh, personal visibility isolation, explicit sandbox permission review, stale prepared-version rejection, old asset/grant invalidation, global app file operations under each user's UID, and document preservation after uninstall. Test catalog, CA and accounts were cleaned up. Persistence and account-isolation regressions pass. Existing owner workers/browser were not restarted.
+
+No public application repository/catalog has been created or published. The normal catalog stays empty until an administrator configures reviewed repositories/commits. A package template and catalog instructions are provided in APP_CENTER.md. Native app backends, broader capabilities, automatic catalog updates and publisher signatures remain future work. This implements the distribution foundation, not the optional application collection or a general system package manager.

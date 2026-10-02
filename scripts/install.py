@@ -136,6 +136,11 @@ for f in (source / "deploy").glob("*.service"):
     else:
         unit = f.name
     (Path("/etc/systemd/system") / unit).write_text(text)
+launcher = Path("/usr/local/bin/neon-apps")
+launcher.write_text(
+    "#!/usr/bin/python3\nimport os\nfrom pathlib import Path\np=Path('/opt/neon-desktop/current')\nbase=p if p.exists() else Path('/opt/neon-desktop')\nos.execv('/usr/bin/python3',['python3',str(base/'scripts/app-center.py'),*__import__('sys').argv[1:]])\n"
+)
+launcher.chmod(0o755)
 shutil.copy2(source / "deploy/pam", "/etc/pam.d/neon-desktop")
 config = Path("/etc/neon-desktop")
 config.mkdir(mode=0o755, exist_ok=True)

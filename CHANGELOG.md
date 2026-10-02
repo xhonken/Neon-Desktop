@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-alpha.4 — unreleased
+
+Adds App Center with Git-backed catalogs, personal install/update/uninstall and administrator-managed global applications. Public HTTPS sources are pinned to full commits; packages are reviewed before atomic activation. Personal stores live in HOME, system stores outside immutable core releases. Global installation remains separate from per-user execution and permission grants.
+
+Dynamic discovery updates the launcher without reloading the desktop. Package revisions bind grants and asset tickets; old versions lose access after update/removal. Downloads never execute repository build/install hooks. Adds an application template, catalog documentation, bounded Git fetching, package-security tests and installed two-user Git/PAM/GUI acceptance. Real repositories and optional applications will be provided later; nothing is published automatically.
+
 ## 0.1.0-alpha.3 — unreleased
 
 Adds Jobs & Sessions with named retained terminals, independent resource-limited background jobs, bounded durable logs and completion status. Adds SSH Connections with named/grouped profiles, encrypted OpenSSH key import, temporary private-agent unlock and optional remote tmux reattachment. Passwords and passphrases are never saved in profiles.

@@ -18,6 +18,7 @@ import uuid
 from pathlib import Path
 from aiohttp import web, ClientSession, UnixConnector, ClientTimeout, WSMsgType
 from .fs import HomeFS, clean
+from .app_packages import AppStore
 from .workbench import Workbench, GENERATION, ROOT, admit, ssh_argv
 
 
@@ -132,6 +133,7 @@ async def main():
     terminals = {}
     runtime = f"/run/neon-worker-{GENERATION}-{a.pw_uid}"
     workbench = Workbench(fs, a, runtime)
+    app_store = AppStore(fs)
     asyncio.get_running_loop().add_signal_handler(
         signal.SIGCHLD, lambda: [t.process.poll() for t in terminals.values()]
     )
@@ -198,6 +200,26 @@ async def main():
 
     async def handle(b):
         action = b.get("action")
+        if action.startswith("apps."):
+            if action == "apps.registry":
+                return web.json_response({"apps": app_store.manifests()})
+            if action == "apps.asset":
+                return web.json_response(
+                    app_store.asset(b["target"], b["revision"], b["path"])
+                )
+            async with app_store.lock:
+                if action == "apps.prepare":
+                    result = await app_store.prepare(b["entry"])
+                elif action == "apps.install":
+                    result = app_store.commit(b["token"], b["entry"], b.get("expected"))
+                elif action == "apps.remove":
+                    result = app_store.remove(b["target"], b["expected"])
+                elif action == "apps.cancel":
+                    app_store.pending.pop(b.get("token"), None)
+                    result = {"ok": True}
+                else:
+                    raise ValueError("Unknown app operation")
+                return web.json_response(result)
         extra = await workbench.dispatch(b)
         if extra is not None:
             return web.json_response(extra)

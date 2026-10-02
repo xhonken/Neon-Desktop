@@ -24,7 +24,11 @@ export async function mount(w, c) {
       );
       return;
     }
-    await c.api("permissions", { app: app.id, permissions: supported });
+    await c.api("permissions", {
+      app: app.id,
+      revision: app.revision,
+      permissions: supported,
+    });
     app.granted = supported;
   }
   const launch = await c.api("app-launch", { app: app.id });
@@ -62,12 +66,18 @@ export async function mount(w, c) {
       else if (data.action === "notify") {
         if (!app.granted?.includes("notifications"))
           throw Error("Permission denied");
+        await c.rpc(app.id, "notifications.check", {
+          appRevision: app.revision,
+        });
         c.notify(
           app.name + ": " + String(data.args?.message || "").slice(0, 200),
         );
         result = { ok: true };
       } else if (data.action?.startsWith("files.")) {
-        result = await c.rpc(app.id, data.action, data.args || {});
+        result = await c.rpc(app.id, data.action, {
+          ...data.args,
+          appRevision: app.revision,
+        });
       } else throw Error("Unsupported SDK action");
       reply({ result });
     } catch (error) {

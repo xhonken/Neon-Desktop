@@ -53,3 +53,11 @@ Python/aiohttp is provided by Debian. Node/npm are development/build tooling and
 Current code is selected by a root-owned immutable release symlink. Each new worker uses a generation-specific unit/socket and terminal ID; the broker discovers retained workers for the authenticated UID. Browser units retain their running process across code switches. Background jobs have separate transient systemd units and fixed unprivileged runners pinned to their release. Job commands are read only after Linux identity isolation.
 
 Device layouts use `desktop-<device UUID>.json`; SSH profiles remain nonsecret JSON. Imported encrypted keys live in `.ssh`; an agent in the private worker runtime holds temporarily unlocked identities. History and job output live beneath `~/.local/share/neon-desktop/`. These are explicit snapshots/job records, not a mirror of the filesystem.
+
+## Alpha.4 application distribution
+
+App Center combines an administrator-controlled `/etc/neon-desktop/catalog.json`, root-owned `/var/lib/neon-apps/system` and per-UID `~/.local/share/neon-desktop/apps` stores. Global packages survive immutable core updates and are available to all eligible Linux accounts. Personal packages are discovered only for their owner. Core/global identities cannot be overridden by personal packages.
+
+Preparation fetches a pinned public HTTPS Git commit without checkout/hooks/build scripts. A validated frontend-only package is reviewed, staged and activated by atomic registry replacement. New manifests refresh the desktop launcher in place. System package management uses the root-only `neon-apps` CLI, with network fetching dropped to the gateway UID. It never executes app code as root.
+
+The broker combines manifests and enforces revision-bound permissions. Scoped static asset tickets are bound to the authenticated session, app ID and current package revision. Personal asset reads pass through the UID worker's HomeFS; the gateway has no HOME access. No filesystem mirror or additional identity database is introduced. The existing SQLite grant table uses revision-qualified app keys without a schema migration.

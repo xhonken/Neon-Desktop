@@ -122,6 +122,11 @@ def configure(target, node):
         )
     )
     (pathlib.Path("/etc/systemd/system/neon-browser@.service")).write_text(text)
+    launcher = pathlib.Path("/usr/local/bin/neon-apps")
+    launcher.write_text(
+        "#!/usr/bin/python3\nimport os\nimport pathlib\np=pathlib.Path('/opt/neon-desktop/current')\nbase=p if p.exists() else pathlib.Path('/opt/neon-desktop')\nos.execv('/usr/bin/python3',['python3',str(base/'scripts/app-center.py'),*__import__('sys').argv[1:]])\n"
+    )
+    launcher.chmod(0o755)
     run("systemctl", "daemon-reload")
 
 

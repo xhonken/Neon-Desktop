@@ -3,6 +3,8 @@ No filesystem path, executable, unit name or UID is accepted from the gateway.
 """
 
 import asyncio
+import base64
+import mimetypes
 import hashlib
 import json
 import logging
@@ -18,6 +20,13 @@ from collections import defaultdict, deque
 from pathlib import Path
 from aiohttp import web, ClientSession, UnixConnector, ClientTimeout, WSMsgType
 from .workbench import GENERATION, ROOT as RELEASE_ROOT, admit, resources
+from .app_packages import (
+    load_catalog,
+    system_manifests,
+    manifest as package_manifest,
+    SYSTEM_ROOT,
+    relative,
+)
 
 LOG = logging.getLogger("neon.security")
 STATE = Path("/var/lib/neon-broker")
@@ -34,6 +43,7 @@ ALLOWED = {
 }
 ACTION_PERMISSION = {
     "files.": "user-files",
+    "notifications.": "notifications",
     "history.": "user-files",
     "document.": "user-files",
     "jobs.": "terminal",
@@ -186,6 +196,10 @@ def manifests():
             raise ValueError("Unknown permission")
         if data.get("runtime") not in ("core", "sandbox"):
             raise ValueError("Unknown app runtime")
+        data["scope"] = "core" if data["runtime"] == "core" else "legacy"
+        data["revision"] = hashlib.sha256(
+            json.dumps(data, sort_keys=True).encode()
+        ).hexdigest()
         result[data["id"]] = data
     return result
 
@@ -321,9 +335,77 @@ async def main():
         finally:
             password = None
 
+    async def registry(uid):
+        result = dict(apps)
+        for app in system_manifests():
+            if app["id"] not in result:
+                result[app["id"]] = app
+        response = await worker(uid, {"action": "apps.registry"})
+        if response.status != 200:
+            raise web.HTTPServiceUnavailable(text="Personal app registry unavailable")
+        for app in json.loads(response.body)["apps"]:
+            m = package_manifest(app, "user")
+            if not re.fullmatch(r"[a-f0-9]{32}", app.get("revision", "")):
+                raise ValueError("Invalid app revision")
+            if m["id"] not in result:
+                result[m["id"]] = {
+                    **m,
+                    "scope": "user",
+                    "revision": app["revision"],
+                    "digest": app.get("digest"),
+                    "source": app.get("source"),
+                }
+        return result
+
+    def grant_key(app):
+        return app["id"] + "@" + app["revision"]
+
+    async def app_content(request):
+        _, session = identify(request)
+        available = await registry(session["uid"])
+        app = available.get(request.query.get("app"))
+        revision = request.query.get("revision")
+        if not app or app["runtime"] != "sandbox" or app["revision"] != revision:
+            raise web.HTTPNotFound()
+        path = relative(request.query.get("path", ""))
+        if app["scope"] == "user":
+            response = await worker(
+                session["uid"],
+                {
+                    "action": "apps.asset",
+                    "target": app["id"],
+                    "revision": revision,
+                    "path": path,
+                },
+            )
+            if response.status != 200:
+                raise web.HTTPNotFound()
+            data = base64.b64decode(json.loads(response.body)["data"], validate=True)
+        else:
+            base = (
+                SYSTEM_ROOT / "system/packages" / revision / "frontend"
+                if app["scope"] == "system"
+                else APPROOT / app["id"] / "frontend"
+            )
+            target = (base / path).resolve()
+            if (
+                not target.is_relative_to(base.resolve())
+                or not target.is_file()
+                or target.stat().st_size > 2 * 1024**2
+            ):
+                raise web.HTTPNotFound()
+            data = target.read_bytes()
+        if len(data) > 2 * 1024**2:
+            raise web.HTTPBadRequest()
+        return web.Response(
+            body=data,
+            content_type=mimetypes.guess_type(path)[0] or "application/octet-stream",
+        )
+
     async def me(request):
         _, s = identify(request)
         a = s["account"]
+        available = await registry(s["uid"])
         return web.json_response(
             dict(
                 username=a.pw_name,
@@ -339,11 +421,11 @@ async def main():
                             r[0]
                             for r in sessions.db.execute(
                                 "SELECT permission FROM grants WHERE uid=? AND app=?",
-                                (s["uid"], app["id"]),
+                                (s["uid"], grant_key(app)),
                             )
                         ],
                     }
-                    for app in apps.values()
+                    for app in available.values()
                 ],
             )
         )
@@ -361,8 +443,12 @@ async def main():
         _, s = identify(request)
         body = await request.json()
         appid = body.get("app")
-        app = apps.get(appid)
-        if not app or app["runtime"] != "sandbox":
+        app = (await registry(s["uid"])).get(appid)
+        if (
+            not app
+            or app["runtime"] != "sandbox"
+            or body.get("revision") != app["revision"]
+        ):
             raise web.HTTPBadRequest()
         grants = body.get("permissions", [])
         if (
@@ -376,7 +462,7 @@ async def main():
         )
         sessions.db.executemany(
             "INSERT INTO grants VALUES (?,?,?)",
-            [(s["uid"], appid, p) for p in set(grants)],
+            [(s["uid"], grant_key(app), p) for p in set(grants)],
         )
         sessions.db.commit()
         sessions.event(s["uid"], "app-permissions", s["peer"])
@@ -415,8 +501,8 @@ async def main():
             )
         )
 
-    def permit(appid, action, uid):
-        app = apps.get(appid)
+    async def permit(appid, action, uid, revision=None):
+        app = (await registry(uid)).get(appid)
         if not app:
             raise web.HTTPForbidden()
         needed = next(
@@ -426,13 +512,18 @@ async def main():
         if needed and needed not in app["permissions"]:
             raise web.HTTPForbidden()
         if app["runtime"] != "core":
+            if revision != app["revision"]:
+                raise web.HTTPForbidden(text="App version changed; reopen it")
             grants = {
                 r[0]
                 for r in sessions.db.execute(
-                    "SELECT permission FROM grants WHERE uid=? AND app=?", (uid, appid)
+                    "SELECT permission FROM grants WHERE uid=? AND app=?",
+                    (uid, grant_key(app)),
                 )
             }
-            if not action.startswith("files.") or needed not in grants:
+            if (
+                not action.startswith("files.") and action != "notifications.check"
+            ) or needed not in grants:
                 raise web.HTTPForbidden(text="Application permission denied")
 
     def terminal_kind(id):
@@ -462,7 +553,59 @@ async def main():
         body = await request.json()
         action = body.get("action", "")
         uid = s["uid"]
-        permit(body.get("app"), action, uid)
+        await permit(body.get("app"), action, uid, body.get("appRevision"))
+        if action == "notifications.check":
+            return web.json_response({"ok": True})
+        if action.startswith("apps."):
+            if body.get("app") != "org.neon.applications":
+                raise web.HTTPForbidden()
+            available = await registry(uid)
+            if action == "apps.catalog":
+                return web.json_response(
+                    {**load_catalog(), "installed": list(available.values())}
+                )
+            if action == "apps.cancel":
+                return await worker(uid, {"action": action, "token": body.get("token")})
+            ident = body.get("target")
+            current = available.get(ident)
+            if current and current["scope"] != "user":
+                raise web.HTTPForbidden(text="This app is administrator-managed")
+            if action == "apps.remove":
+                response = await worker(
+                    uid,
+                    {
+                        "action": action,
+                        "target": ident,
+                        "expected": body.get("expected"),
+                    },
+                )
+            elif action in ("apps.prepare", "apps.install"):
+                entry = next(
+                    (e for e in load_catalog()["apps"] if e["id"] == ident), None
+                )
+                if not entry or entry["installation"] != "user":
+                    raise web.HTTPForbidden(
+                        text="Administrator installation required or app unavailable"
+                    )
+                response = await worker(
+                    uid,
+                    {
+                        "action": action,
+                        "entry": entry,
+                        "token": body.get("token"),
+                        "expected": body.get("expected"),
+                    },
+                )
+            else:
+                raise web.HTTPBadRequest()
+            if response.status == 200 and action in ("apps.install", "apps.remove"):
+                sessions.db.execute(
+                    "DELETE FROM grants WHERE uid=? AND (app=? OR app LIKE ?)",
+                    (uid, ident, ident + "@%"),
+                )
+                sessions.db.commit()
+                sessions.event(uid, action + ":" + ident, s["peer"])
+            return response
         if action == "terminal.list":
             items = []
             paths = [
@@ -632,7 +775,7 @@ async def main():
         token, s = identify(request)
         kind = request.match_info["kind"]
         appid = request.query.get("app", "")
-        permit(appid, kind + ".stream", s["uid"])
+        await permit(appid, kind + ".stream", s["uid"])
         csrf = request.query.get("csrf", "")
         if not secrets.compare_digest(csrf, s["csrf"]):
             raise web.HTTPForbidden()
@@ -706,6 +849,7 @@ async def main():
         [
             web.post("/login", login),
             web.get("/me", me),
+            web.get("/app-content", app_content),
             web.post("/logout", logout),
             web.get("/security", security),
             web.post("/security", security),

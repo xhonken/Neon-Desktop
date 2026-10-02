@@ -47,6 +47,7 @@ Open `https://YOUR_SERVER_IP/` and sign in with an existing eligible Linux accou
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Security and threat boundaries](docs/SECURITY.md)
+- [App Center, personal/system apps and Git distribution](docs/APP_CENTER.md)
 - [API and application SDK](docs/APPLICATIONS.md)
 - [Deployment and recovery](docs/DEPLOYMENT.md)
 - [Jobs, SSH connections, keys and file history](docs/WORKBENCH.md)

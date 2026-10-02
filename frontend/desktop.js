@@ -150,10 +150,25 @@ export async function start(identity) {
     apply,
     open,
     renderPins,
+    refreshApps,
+    closeApp: async (id) => {
+      for (const w of [...wm.windows.values()])
+        if (w.app.id === id) await wm.close(w);
+    },
     flush,
     ensureConnection: link.check,
     onReconnect: link.onReconnect,
   };
+  async function refreshApps() {
+    const me = await api("me");
+    apps.clear();
+    for (const app of me.apps) apps.set(app.id, app);
+    identity.apps = me.apps;
+    renderPins();
+    renderShortcuts();
+    renderApps();
+    return me.apps;
+  }
   async function open(id, saved = {}) {
     const app = apps.get(id);
     if (!app) return;

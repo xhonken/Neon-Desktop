@@ -14,7 +14,7 @@ This alpha is for a trusted local development network. It has not received an in
 - Atomic same-directory file replacement, no silent overwrite for upload/copy/move. Bounded uploads and ZIP extraction; ZIP names, types, counts and expanded size prevalidated. No shell extraction or request-concatenated shell commands.
 - SSH is the system OpenSSH client in a real PTY, with interactive new-host confirmation and refusal of changed keys. Agent forwarding is off; passwords are not saved in profiles.
 - Chromium runs with its normal sandbox, under the user UID, with CDP over anonymous pipes and no debugging TCP listener. Per-user cookies/profile; dedicated memory/CPU/task limits, explicit termination; disconnecting or signing out does not end the process.
-- Root-owned deployed code and manifests. Third-party frontend sandbox, explicit limited grants, backend enforcement and permission revocation; no third-party Python backend execution.
+- Root-owned core code and global packages; personal packages remain untrusted and private in their owner's HOME. Third-party frontend sandbox, explicit revision-bound limited grants, backend enforcement and permission revocation; no third-party Python backend execution.
 
 ## Important boundaries
 
@@ -46,3 +46,9 @@ Authentication remains expiring/revocable. Reattaching always requires a current
 ## Alpha.3 workbench boundaries
 
 SSH unlock uses a same-UID private ssh-agent, TTL, and nonce/peer-checked Unix askpass transport; encrypted key import and no persistent passphrase storage are described in WORKBENCH.md. Background jobs are direct argv execution as the authenticated UID inside a separate cgroup. Input takeover/editing leases coordinate trusted views of the same Linux account; they do not revoke that user's OS file authority. History/drafts are private but may contain source secrets: review exclusions and protect HOME/backups. Immutable release switching preserves active processes; older workers remain on their previous security implementation until explicitly retired at an idle maintenance opportunity.
+
+## Alpha.4 App Center boundaries
+
+Only an administrator-selected catalog can supply Git sources. Exact commits, HTTPS-only transport with certificate verification, disabled redirects/credentials/hooks/submodules, bounded subprocess output/time/resources, package path/type/size validation and descriptor-relative personal-store operations constrain installation. Catalog SHA pins are not publisher signatures. Catalog refresh is explicit administrator work; personal users cannot choose arbitrary repository URLs through the web API.
+
+Neither Git fetch nor app code runs as root. The administrator CLI uses an unprivileged fetch process, revalidates the result and writes root-owned global packages. It does not execute repository scripts or install OS dependencies automatically. Global installation does not grant privileged execution. Each user's grants, API operations and files remain associated with that Linux UID. Updates invalidate old asset tickets and capability bindings; uninstall preserves documents outside package storage. See APP_CENTER.md for supported runtime limits.

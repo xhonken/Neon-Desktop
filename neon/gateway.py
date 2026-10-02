@@ -84,22 +84,30 @@ async def main():
         if not secrets.compare_digest(r.headers.get("X-CSRF-Token", ""), me["csrf"]):
             raise web.HTTPForbidden()
         body = await r.json()
-        appid = body.get("app")
-        if not any(a["id"] == appid and a["runtime"] == "sandbox" for a in me["apps"]):
+        app = next(
+            (
+                a
+                for a in me["apps"]
+                if a["id"] == body.get("app") and a["runtime"] == "sandbox"
+            ),
+            None,
+        )
+        if not app:
             raise web.HTTPNotFound()
-        for key in list(asset_tickets):
-            if asset_tickets[key]["expires"] < time.time():
-                del asset_tickets[key]
-        if len(asset_tickets) >= 1024:
+        for key, value in list(asset_tickets.items()):
+            if value["expires"] < time.time():
+                asset_tickets.pop(key, None)
+        if len(asset_tickets) >= 5000:
             raise web.HTTPTooManyRequests()
         ticket = secrets.token_urlsafe(32)
         asset_tickets[ticket] = {
-            "app": appid,
+            "app": app["id"],
+            "revision": app["revision"],
             "session": r.cookies.get(COOKIE, ""),
             "expires": time.time() + 600,
         }
         return web.json_response(
-            {"src": "/app-assets/" + appid + "/" + ticket + "/index.html"}
+            {"src": "/app-assets/" + app["id"] + "/" + ticket + "/index.html"}
         )
 
     async def app_asset(r):
@@ -111,20 +119,22 @@ async def main():
         ):
             raise web.HTTPNotFound()
         async with client.get(
-            "http://broker/me", headers={"Authorization": "Bearer " + grant["session"]}
-        ) as reply:
-            if reply.status != 200:
-                raise web.HTTPUnauthorized()
-            me = await reply.json()
-        appid = r.match_info["app"]
-        path = r.match_info["path"]
-        if not any(a["id"] == appid and a["runtime"] == "sandbox" for a in me["apps"]):
-            raise web.HTTPNotFound()
-        base = Path(__file__).resolve().parents[1] / "apps" / appid / "frontend"
-        file = (base / path).resolve()
-        if not file.is_relative_to(base) or not file.is_file():
-            raise web.HTTPNotFound()
-        response = web.FileResponse(file)
+            "http://broker/app-content",
+            params={
+                "app": grant["app"],
+                "revision": grant["revision"],
+                "path": r.match_info["path"],
+            },
+            headers={
+                "Authorization": "Bearer " + grant["session"],
+                "X-Neon-Background": "1",
+            },
+        ) as upstream:
+            if upstream.status != 200:
+                raise web.HTTPNotFound()
+            response = web.Response(
+                body=await upstream.read(), content_type=upstream.content_type
+            )
         response.headers["Content-Security-Policy"] = (
             "sandbox allow-scripts; default-src 'none'; script-src "
             + ORIGIN

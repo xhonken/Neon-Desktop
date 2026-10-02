@@ -916,3 +916,21 @@ button {
   max-height: 50vh;
   overflow: auto;
 }
+.app-grid {
+  overflow: auto;
+  min-height: 0;
+}
+.application-card {
+  overflow-wrap: anywhere;
+}
+.application-card > button {
+  margin: 0.25rem 0.35rem 0.25rem 0;
+}
+.application-card details {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+}
+.app-empty {
+  padding: 2rem;
+  grid-column: 1 / -1;
+}

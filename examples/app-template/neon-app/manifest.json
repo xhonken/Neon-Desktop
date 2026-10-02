@@ -1,0 +1,20 @@
+{
+  "id": "org.example.myapp",
+  "name": "My application",
+  "description": "Replace this description before publishing.",
+  "version": "1.0.0",
+  "category": "utilities",
+  "runtime": "sandbox",
+  "installation": "user",
+  "systemDependencies": [],
+  "permissions": ["notifications"],
+  "pinnable": true,
+  "icon": "◇",
+  "window": {
+    "width": 800,
+    "height": 600,
+    "minWidth": 350,
+    "minHeight": 250,
+    "resizable": true
+  }
+}

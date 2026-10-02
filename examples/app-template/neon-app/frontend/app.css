@@ -1,0 +1,25 @@
+:root {
+  color-scheme: dark;
+  --accent: #65e6ad;
+}
+body {
+  margin: 0;
+  padding: 1.5rem;
+  background: #0c151b;
+  color: #dce6eb;
+  font:
+    1rem system-ui,
+    sans-serif;
+}
+button {
+  border: 1px solid var(--accent);
+  border-radius: 0.4rem;
+  padding: 0.6rem 1rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
