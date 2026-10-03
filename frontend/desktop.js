@@ -179,6 +179,12 @@ export async function start(identity) {
     return me.apps;
   }
   async function open(id, saved = {}) {
+    if (
+      !apps.has(id) &&
+      saved.state?.terminal &&
+      ["org.neon.codex", "org.neon.qwen-coder"].includes(id)
+    )
+      id = "org.neon.terminal";
     const app = apps.get(id);
     if (!app) return;
     const w = wm.create(app, saved);
