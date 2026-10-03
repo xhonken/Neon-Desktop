@@ -1,10 +1,10 @@
-# Implementation status — 0.1.0-alpha.6
+# Implementation status — 0.1.0-alpha.7
 
 This is a working first alpha, not completion of the full project plan. The confirmed product name is Neon Desktop. It is independently implemented; no Pi-2000 source or migration layer is included.
 
 ## Installed and exercised
 
-The following were verified on a Raspberry Pi 5, 8 GB, ARM64, Debian 13 / Raspberry Pi OS, using the installed Caddy HTTPS origin on 2026-10-02. Client browser automation used the actual login page and PAM; it did not bypass authentication with a test token.
+The following were verified on a Raspberry Pi 5, 8 GB, ARM64, Debian 13 / Raspberry Pi OS, using the installed Caddy HTTPS origin through 2026-10-03. Client browser automation used the actual login page and PAM; it did not bypass authentication with a test token.
 
 | Area | Current implementation | Verification / boundary |
 | --- | --- | --- |
@@ -18,22 +18,22 @@ The following were verified on a Raspberry Pi 5, 8 GB, ARM64, Debian 13 / Raspbe
 | Editor | CodeMirror 6, tabs and reordering, tree, unsaved indicator, syntax, search/replace, undo, save/save-as | Real edit and Ctrl+S save; revision conflict and existing executable-mode tests |
 | Graphical browser | Server-side Chromium, per-user persistent profile, screenshot/input stream, normal sandbox, pipe-only CDP, retained while disconnected | Actual navigation/stream; kernel cgroup files, UID, renderer seccomp, no --no-sandbox |
 | Settings | Appearance/accent/scale, desktop recovery/snapping, pins, account metadata, session security, terminal/editor preferences, accessibility, clock, filesystem capacity | Opened through installed desktop; settings saved in user config |
-| Applications | Nine core apps including App Center; Git catalog, personal and global stores, sandbox SDK and revision-bound grants | Actual HTTPS Git/PAM/GUI install, update, uninstall; two-user visibility/ownership, stale asset/grant rejection; real catalog intentionally empty |
+| Applications | Eleven core apps including App Center, Trash and administrator-only Administration; Git catalog, personal and global stores, sandbox SDK and revision-bound grants | Actual HTTPS Git/PAM/GUI install, update, uninstall; two-user visibility/ownership, stale asset/grant rejection; real catalog intentionally empty |
 | Deployment | Caddy, systemd units, PAM policy, installer, source package tool and CI definition | Real host reboot, automatic gateway/broker startup, verified TLS from another LAN host |
 
-Automated baseline: **34 Python tests and 6 JavaScript tests pass**. Both installed graphical suites and the disposable second-account isolation suite pass. The installed Node runtime is 24.21.0; Puppeteer is pinned to 25.12.0. npm audit reported zero known vulnerabilities at verification time; this is a time-specific dependency check, not a security certification. GitHub Actions has not run remotely because this repository has not been published.
+Automated baseline: **44 Python tests and 6 JavaScript tests pass**. Both installed graphical suites and the disposable second-account isolation suite pass. The installed Node runtime is 24.21.0; Puppeteer is pinned to 25.12.0. npm audit reported zero known vulnerabilities at verification time; this is a time-specific dependency check, not a security certification. GitHub Actions has not run remotely because this repository has not been published.
 
 On Raspberry Pi OS the memory cgroup controller had to be enabled in the boot command line and verified after a real reboot. The installer and broker now fail closed if it is unavailable. Actual browser limits: 1 GiB memory.high, 1.5 GiB memory.max, 256 MiB memory.swap.max, 150% CPU and 160 tasks. A live 13-process Chromium session ran as the intended UID with renderer seccomp and no OOM events during the recorded check.
 
 ## Incomplete areas and release gates
 
-- File operations are deliberately bounded: 16 MiB individual file API limit, 64 MiB expanded ZIP limit. Recursive folder copy/delete, a durable clipboard workflow, Trash, large-file streaming/resumable upload and fuller archive UX remain. Empty directories can be deleted. ZIP creation currently accepts files, not arbitrary recursive trees.
+- File operations are deliberately bounded: 16 MiB individual file API limit, 64 MiB expanded ZIP limit. Bounded recursive copy, private Trash/restore/purge and an in-document clipboard are implemented in alpha.7; large-file streaming/resumable uploads and fuller archive UX remain. ZIP creation currently accepts files, not arbitrary recursive trees.
 - The editor checks an expected content revision before saving and preserves existing mode bits. This detects ordinary intervening saves; it is not a transaction against arbitrary external writers racing the final replacement. Unsaved editor documents now have bounded private recovery drafts; see SESSION_RECOVERY.md. Later LSP, Git, split editor and autocomplete are not implemented.
 - OpenSSH uses the system host-key verification dialog inside the PTY and refuses changed keys. Named groups, encrypted-key import/unlock and optional remote tmux recovery are implemented in alpha.3. Graphical known_hosts/authorized_keys editing and SSH key generation remain. No SSH password storage is provided. Remote-host acceptance and w3m interaction have not received the same graphical coverage as the local PTY.
 - Browser streaming is an initial single-page implementation. Rich tabs, audio/video optimization, clipboard/file dialogs/download integration, broader site/input compatibility, stress tests and aggregate multi-user admission remain. Minimizing or closing a desktop window does not intentionally end the browser process; only explicit stop ends it during ordinary operation. A crash, resource-limit kill or server restart still terminates processes.
-- Settings is not the entire specified control panel. PAM password changing, secure keyring integration, HOME usage/largest directories/Trash controls, per-app notification preferences, full language/timezone/region controls and some appearance/editor controls remain. TOTP/WebAuthn are future work.
-- Third-party apps support frontend isolation and two grant types: user-files and notifications. Other capabilities and third-party Python/Node backend execution are denied. The API/SDK is versioned but still alpha and not yet a stable compatibility promise. The example package is a development fixture, not installed in the normal nine-app core.
-- No Administration app or optional Git/Arduino/database/media/etc. apps are built. System administration stays outside normal user Settings. The web terminal cannot elevate through sudo/setuid; use SSH for administration.
+- Settings is not the entire specified control panel. Secure keyring integration, detailed HOME usage/largest-directory controls, per-app notification preferences, full language/timezone/region controls and some appearance/editor controls remain. TOTP/WebAuthn are future work.
+- Third-party apps support frontend isolation and two grant types: user-files and notifications. Other capabilities and third-party Python/Node backend execution are denied. The API/SDK is versioned but still alpha and not yet a stable compatibility promise. The example package is a development fixture, not installed in the normal eleven-app core.
+- Administration supports fixed local account operations with explicit PAM confirmation; see ACCOUNTS_AND_TRASH.md. Optional Git/Arduino/database/media/etc. apps are not built. The web terminal cannot elevate through sudo/setuid; use SSH for administration.
 - Full mobile/touch and assistive-technology acceptance, aggregate multi-user load testing, independent security review, broader upgrade/rollback acceptance and an owner-provided security contact are required before a public production release.
 - The public source package excludes private site configuration and test artifacts. A clean source build is checked on the development Pi. A fresh installation on a second pristine OS image remains unverified; do not infer cross-distribution support from one host.
 
@@ -88,3 +88,7 @@ Installed HTTPS/PAM acceptance with a disposable account passed: visible and min
 Six desktop improvements are implemented: host identity/default accent, named terminal/taskbar titles, keyboard quick-open across apps/windows/SSH/sessions, desktop context menu and terminal-in-directory, actionable bounded notification center, and responsive/focus/language polish. See DESKTOP_FOUNDATION.md for exact scope, including the initial Swedish/English chrome boundary. Installed disposable-account GUI checks cover hostname, Ctrl+K, renaming, shortcuts/context menus, real directory PTY with spaces, language switch, upload notification and small-screen menu bounds. Browser inspection identified and fixed menu-height overlap on small screens.
 
 The security review reproduced and fixed stale web access after Linux lock/password change, disabled authentication core dumps, bounded unauthenticated login bodies and deployed a patched pinned aiohttp runtime. TLS1.3-only behavior was verified with and without SNI; the Caddy catch-all policy closes the IP/no-SNI gap. Installed tests verify account revocation, request limits and all earlier two-account isolation/CSRF/Origin/socket/permission controls. See SECURITY_REVIEW.md for evidence, dependency advisories and remaining limits. Existing active user worker/terminal/browser processes are preserved except for any separately approved browser restart. This is not an independent security certification.
+
+## Alpha.7 personal files and accounts
+
+See [ACCOUNTS_AND_TRASH.md](ACCOUNTS_AND_TRASH.md) for implemented file recovery, copy limits, explicit sudo administration, self-password changes and browser-login management. Existing workers/browser/jobs are preserved; revoking web access is separate from stopping Linux processes.

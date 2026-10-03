@@ -17,6 +17,7 @@ import time
 import uuid
 from pathlib import Path
 from aiohttp import web, ClientSession, UnixConnector, ClientTimeout, WSMsgType
+from .file_operations import FileOperations
 from .fs import HomeFS, clean
 from .app_packages import AppStore
 from .workbench import Workbench, GENERATION, ROOT, admit, ssh_argv
@@ -139,6 +140,10 @@ async def main():
         signal.SIGCHLD, lambda: [t.process.poll() for t in terminals.values()]
     )
     write_lock = asyncio.Lock()
+    files = FileOperations(fs)
+    file_tasks = {}
+    usage_lock = asyncio.Lock()
+    usage_cache = {}
     config = ".config/neon-desktop"
     for p in [".config", config]:
         try:
@@ -201,6 +206,64 @@ async def main():
 
     async def handle(b):
         action = b.get("action")
+        if action == "storage.usage":
+            async with usage_lock:
+                if usage_cache.get("until", 0) < time.monotonic():
+                    proc = await asyncio.create_subprocess_exec("/usr/bin/du", "-sx", "--block-size=1", "--", a.pw_dir, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+                    try:
+                        raw, _ = await asyncio.wait_for(proc.communicate(), 15)
+                    except BaseException:
+                        if proc.returncode is None:
+                            proc.kill(); await proc.wait()
+                        raise
+                    if proc.returncode:
+                        raise ValueError("Storage measurement could not read all files")
+                    usage_cache.update(bytes=int(raw.split()[0]), until=time.monotonic()+60)
+                return web.json_response({"bytes": usage_cache["bytes"]})
+        if action == "files.trash.list":
+            return web.json_response({"entries": await asyncio.to_thread(files.list_trash)})
+        if action == "files.operation.status":
+            task = file_tasks.get(b.get("id"))
+            if not task:
+                raise ValueError("File operation no longer available")
+            return web.json_response({k: v for k, v in task.items() if k != "task"})
+        if action == "files.operation.start":
+            kind = b.get("kind")
+            if kind not in ("copy", "move", "trash", "restore", "purge"):
+                raise ValueError("Unknown file operation")
+            entries = b.get("entries")
+            if not isinstance(entries, list) or not 1 <= len(entries) <= 1000 or not all(isinstance(x, dict) for x in entries):
+                raise ValueError("Select 1 to 1000 items")
+            if any(x["status"] == "running" for x in file_tasks.values()):
+                raise ValueError("Another file operation is running; wait for it to finish")
+            ident = uuid.uuid4().hex
+            task = {"id": ident, "status": "running", "done": 0, "total": len(entries), "entries": 0, "bytes": 0}
+            file_tasks[ident] = task
+            async def perform():
+                try:
+                    async with write_lock:
+                        for entry in entries:
+                            def progress(count, size):
+                                task.update(entries=count, bytes=size)
+                            if kind == "copy":
+                                await asyncio.to_thread(files.copy, entry['path'], entry['target'], progress)
+                            elif kind == "move":
+                                await asyncio.to_thread(fs.rename, entry['path'], entry['target'])
+                            elif kind == "trash":
+                                await asyncio.to_thread(files.trash, entry['path'])
+                            elif kind == "restore":
+                                await asyncio.to_thread(files.restore, entry['id'], entry.get('target'))
+                            else:
+                                await asyncio.to_thread(files.purge, entry['id'])
+                            task['done'] += 1
+                    task['status'] = 'completed'
+                except Exception as e:
+                    task.update(status='failed', error=str(e))
+            task['task'] = asyncio.create_task(perform())
+            for old in list(file_tasks)[:-100]:
+                if file_tasks[old]['status'] != 'running':
+                    file_tasks.pop(old)
+            return web.json_response({'id': ident})
         if action.startswith("apps."):
             if action == "apps.registry":
                 return web.json_response({"apps": app_store.manifests()})
@@ -268,10 +331,10 @@ async def main():
             await asyncio.to_thread(fs.rename, path, b["target"])
             result = {"ok": True}
         elif action == "files.delete":
-            await asyncio.to_thread(fs.remove, path)
+            await asyncio.to_thread(files.trash, path)
             result = {"ok": True}
         elif action == "files.copy":
-            await asyncio.to_thread(fs.copy, path, b["target"])
+            await asyncio.to_thread(files.copy, path, b["target"])
             result = {"ok": True}
         elif action == "files.zip":
             await asyncio.to_thread(fs.zip, b["paths"], b["target"])

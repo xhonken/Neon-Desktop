@@ -1,0 +1,30 @@
+[Unit]
+Description=Neon Desktop fixed Linux account management
+After=network.target
+[Service]
+Type=simple
+User=root
+UMask=0077
+WorkingDirectory=/opt/neon-desktop
+ExecStart=/opt/neon-python-3.14.3/bin/python -m neon.accounts
+Restart=on-failure
+RuntimeDirectory=neon-accounts
+RuntimeDirectoryMode=0700
+StateDirectory=neon-accounts
+StateDirectoryMode=0700
+LimitCORE=0
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETGID CAP_SETUID CAP_KILL CAP_AUDIT_WRITE
+ProtectSystem=strict
+ReadWritePaths=/etc /home /var/lib/neon-accounts
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX
+MemoryMax=256M
+TasksMax=30
+[Install]
+WantedBy=multi-user.target

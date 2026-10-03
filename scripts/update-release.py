@@ -49,6 +49,15 @@ def run(*cmd):
     subprocess.run(cmd, check=True)
 
 
+def restart_auth():
+    if (BASE / "current/deploy/neon-accounts.service").exists():
+        run("systemctl", "restart", "neon-accounts")
+        run("systemctl", "is-active", "--quiet", "neon-accounts")
+    else:
+        subprocess.run(["systemctl", "disable", "--now", "neon-accounts"], check=False)
+    run("systemctl", "restart", "neon-broker", "neon-gateway")
+
+
 def record(data):
     temp = STATE.with_suffix(".tmp")
     temp.write_text(json.dumps(data, indent=2) + "\n")
@@ -88,7 +97,9 @@ def check_ready():
 
 
 def configure(target, node):
-    for name in ("neon-gateway.service", "neon-broker.service"):
+    for name in ("neon-gateway.service", "neon-broker.service", "neon-accounts.service"):
+        if not (target / "deploy" / name).exists():
+            continue
         text = (
             (target / "deploy" / name)
             .read_text()
@@ -130,7 +141,12 @@ def configure(target, node):
         "#!/usr/bin/python3\nimport os\nimport pathlib\np=pathlib.Path('/opt/neon-desktop/current')\nbase=p if p.exists() else pathlib.Path('/opt/neon-desktop')\nos.execv('/usr/bin/python3',['python3',str(base/'scripts/app-center.py'),*__import__('sys').argv[1:]])\n"
     )
     launcher.chmod(0o755)
+    if not (target / "deploy/neon-accounts.service").exists():
+        subprocess.run(["systemctl", "disable", "--now", "neon-accounts"], check=False)
     run("systemctl", "daemon-reload")
+    if (target / "deploy/neon-accounts.service").exists():
+        run("systemctl", "enable", "neon-accounts")
+
 
 
 data = (
@@ -181,12 +197,12 @@ if args.rollback:
     switch(target)
     # Gateway/broker only: existing worker/browser units and immutable code are retained.
     try:
-        run("systemctl", "restart", "neon-broker", "neon-gateway")
+        restart_auth()
         run("systemctl", "is-active", "--quiet", "neon-broker", "neon-gateway")
         check_ready()
     except Exception:
         switch(previous)
-        run("systemctl", "restart", "neon-broker", "neon-gateway")
+        restart_auth()
         raise
     data["current"] = args.rollback
     record(data)
@@ -322,12 +338,12 @@ try:
     previous = (BASE / "current").resolve()
     switch(target)
     try:
-        run("systemctl", "restart", "neon-broker", "neon-gateway")
+        restart_auth()
         run("systemctl", "is-active", "--quiet", "neon-broker", "neon-gateway")
         check_ready()
     except Exception:
         switch(previous)
-        run("systemctl", "restart", "neon-broker", "neon-gateway")
+        restart_auth()
         raise
     data["releases"][release] = {
         "path": str(target),
@@ -342,7 +358,7 @@ try:
             {
                 "installed": release,
                 "retainedWorkers": active,
-                "note": "Only gateway/broker restarted; streams reconnect. No existing worker/browser/job terminated.",
+                "note": "Only authentication services restarted; streams reconnect. No existing worker/browser/job terminated.",
             },
             indent=2,
         )

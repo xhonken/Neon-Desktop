@@ -1,7 +1,7 @@
 {
   "id": "org.neon.connections",
   "name": "SSH Connections",
-  "version": "0.1.0-alpha.6",
+  "version": "0.1.0-alpha.7",
   "category": "internet",
   "pinnable": true,
   "runtime": "core",

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.0-alpha.7 — unreleased
+
+Adds private recoverable Trash, bounded recursive folder copy, shared Files clipboard, conflict prompts and server progress. Adds Administration for local account creation/lock/reset/sudo with PAM confirmation and a separate restricted root service. Settings Account now supports self-password changes and individual browser-login revocation. Web access revocation preserves running jobs; new accounts have no sudo by default. See docs/ACCOUNTS_AND_TRASH.md.
+
 ## 0.1.0-alpha.6 — unreleased
 
 Adds host identity/accent, named terminal/taskbar titles, Ctrl+K search across apps/windows/SSH/sessions, desktop context menu, descriptor-based Open terminal here, actionable notification center, Swedish/English desktop chrome and responsive keyboard-focused polish. Hardens credential-state revocation, authentication core dumps and login request limits; pins patched aiohttp and provides TLS1.3-only dedicated-host configuration. See docs/DESKTOP_FOUNDATION.md and docs/SECURITY_REVIEW.md.

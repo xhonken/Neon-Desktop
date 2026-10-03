@@ -1,17 +1,19 @@
 {
-  "id": "org.neon.applications",
-  "name": "App Center",
+  "id": "org.neon.trash",
+  "name": "Trash",
   "version": "0.1.0-alpha.7",
   "category": "system",
   "pinnable": true,
   "runtime": "core",
-  "icon": "\u25c8",
+  "icon": "\u2672",
   "window": {
-    "width": 820,
-    "height": 580,
+    "width": 940,
+    "height": 650,
     "minWidth": 350,
     "minHeight": 250,
     "resizable": true
   },
-  "permissions": []
+  "permissions": [
+    "user-files"
+  ]
 }

@@ -8,7 +8,7 @@ sudo python3 scripts/update-release.py --status
 sudo python3 scripts/update-release.py --source /absolute/path/to/neon-desktop
 ```
 
-The tool stages root-owned immutable code beneath `/opt/neon-desktop/releases`, compiles the two helpers, creates a generation-specific worker template, and atomically switches `/opt/neon-desktop/current`. It checks gateway/broker readiness and restores the previous pointer if activation fails. Only the gateway and broker restart; client streams briefly reconnect. User workers, PTYs, background-job cgroups and Chromium are not stopped. Existing workers continue using their original code and private socket. New sessions use the current generation; the registry routes older terminal IDs to their original worker.
+The tool stages root-owned immutable code beneath `/opt/neon-desktop/releases`, compiles the two helpers, creates a generation-specific worker template, and atomically switches `/opt/neon-desktop/current`. It checks gateway/broker readiness and restores the previous pointer if activation fails. The gateway, broker and (from alpha.7) fixed account service restart; client streams briefly reconnect. User workers, PTYs, background-job cgroups and Chromium are not stopped. Existing workers continue using their original code and private socket. New sessions use the current generation; the registry routes older terminal IDs to their original worker.
 
 The first upgrade captures the previous installation as a registered baseline. Site configuration, HOME files and security/session databases are not copied into release directories. Do not edit a staged release or point `current` at an unregistered directory. Old releases are retained because a worker/job/browser can still be executing them. Automatic removal is intentionally not provided.
 
@@ -23,3 +23,5 @@ Rollback is conservative: it defers while any managed terminal/job is live or a 
 A process-preserving deployment and idle/rollback refusal can be verified while real work runs. Performing an actual rollback requires an idle opportunity; never terminate a user's jobs just to test it. Fresh installation and upgrade from this host's earlier alpha are distinct acceptance targets.
 
 The root-owned Python environment `/opt/neon-python-3.14.3` pins reviewed aiohttp dependencies separately from Debian system Python. Old running workers retain their original interpreter and library mappings until retired at an idle maintenance opportunity. Credential-state enforcement in the current broker protects access to retained workers too. The first deployment of credential-state binding requires web reauthentication; server-side processes remain running.
+
+Alpha.7 adds neon-accounts.service and per-login browser metadata. Reverting to earlier code disables the account service, but does not reverse Linux account/password/group changes or file operations.

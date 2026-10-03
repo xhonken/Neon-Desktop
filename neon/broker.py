@@ -21,6 +21,7 @@ from pathlib import Path
 from .http_limits import login_body
 from aiohttp import web, ClientSession, UnixConnector, ClientTimeout, WSMsgType
 from .credentials import credential_version
+from .accounts import is_admin, account as local_account
 from .workbench import GENERATION, ROOT as RELEASE_ROOT, admit, resources
 from .app_packages import (
     load_catalog,
@@ -81,13 +82,15 @@ class Sessions:
         )
         if "credential" not in {r[1] for r in self.db.execute("PRAGMA table_info(sessions)")}:
             self.db.execute("ALTER TABLE sessions ADD COLUMN credential TEXT NOT NULL DEFAULT ''")
+        if "agent" not in {r[1] for r in self.db.execute("PRAGMA table_info(sessions)")}:
+            self.db.execute("ALTER TABLE sessions ADD COLUMN agent TEXT NOT NULL DEFAULT ''")
         self.db.commit()
 
     @staticmethod
     def digest(token):
         return hashlib.sha256(token.encode()).hexdigest()
 
-    def issue(self, uid, peer):
+    def issue(self, uid, peer, agent=""):
         identity = principal(uid)
         credential = credential_version(pwd.getpwuid(uid).pw_name)
         old = self.db.execute(
@@ -114,7 +117,7 @@ class Sessions:
         ):
             raise web.HTTPTooManyRequests()
         self.db.execute(
-            "INSERT INTO sessions (token,sid,uid,created,touched,expires,csrf,peer,principal,credential) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO sessions (token,sid,uid,created,touched,expires,csrf,peer,principal,credential,agent) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (
                 self.digest(token),
                 secrets.token_hex(12),
@@ -126,6 +129,7 @@ class Sessions:
                 peer,
                 identity,
                 credential,
+                str(agent)[:300],
             ),
         )
         self.db.commit()
@@ -338,7 +342,7 @@ async def main():
                     raise ValueError()
                 if proc.returncode:
                     raise ValueError()
-            token, csrf = sessions.issue(account.pw_uid, peer)
+            token, csrf = sessions.issue(account.pw_uid, peer, request.headers.get("X-Client-Agent", ""))
             sessions.event(account.pw_uid, "login", peer)
             return web.json_response(dict(token=token, csrf=csrf))
         except (ValueError, KeyError):
@@ -350,6 +354,8 @@ async def main():
 
     async def registry(uid):
         result = dict(apps)
+        if not is_admin(pwd.getpwuid(uid).pw_name):
+            result.pop("org.neon.administration", None)
         for app in system_manifests():
             if app["id"] not in result:
                 result[app["id"]] = app
@@ -423,6 +429,7 @@ async def main():
             dict(
                 username=a.pw_name,
                 hostname=socket.gethostname(),
+                administrator=is_admin(a.pw_name),
                 uid=a.pw_uid,
                 home=a.pw_dir,
                 shell=a.pw_shell,
@@ -485,15 +492,19 @@ async def main():
     async def security(request):
         token, s = identify(request)
         if request.method == "POST":
-            sessions.db.execute(
-                "DELETE FROM sessions WHERE uid=? AND token!=?",
-                (s["uid"], sessions.digest(token)),
-            )
+            body = await request.json()
+            if not isinstance(body, dict):
+                raise web.HTTPBadRequest()
+            if body.get("id"):
+                sessions.db.execute("DELETE FROM sessions WHERE uid=? AND sid=?", (s["uid"], str(body["id"])))
+            else:
+                sessions.db.execute("DELETE FROM sessions WHERE uid=? AND token!=?", (s["uid"], sessions.digest(token)))
+            sessions.event(s["uid"], "web-session-revoked", s["peer"])
             sessions.db.commit()
             return web.json_response({"ok": True})
         rows = sessions.db.execute(
-            "SELECT sid,created,touched,peer FROM sessions WHERE uid=? AND expires>? AND touched>?",
-            (s["uid"], time.time(), time.time() - 1800),
+            "SELECT sid,created,touched,peer,agent FROM sessions WHERE uid=? AND expires>? AND touched>? AND principal=? AND credential=?",
+            (s["uid"], time.time(), time.time() - 1800, principal(s["uid"]), credential_version(s["account"].pw_name)),
         ).fetchall()
         events = sessions.db.execute(
             "SELECT time,event,peer FROM audit WHERE uid=? ORDER BY time DESC LIMIT 20",
@@ -507,6 +518,7 @@ async def main():
                         created=r[1],
                         last=r[2],
                         peer=r[3],
+                        device=r[4] or "Unknown browser (older login)",
                         current=r[0] == s["sid"],
                     )
                     for r in rows
@@ -514,6 +526,35 @@ async def main():
                 events=events,
             )
         )
+
+    async def accounts(request):
+        _, session = identify(request)
+        if request.path == "/administration" and not is_admin(session["account"].pw_name):
+            raise web.HTTPForbidden()
+        raw = await request.read()
+        if len(raw) > 8192:
+            raise web.HTTPRequestEntityTooLarge(max_size=8192, actual_size=len(raw))
+        body = json.loads(raw)
+        if not isinstance(body, dict):
+            raise web.HTTPBadRequest()
+        operation = body.get("operation")
+        if request.path == "/account":
+            if operation != "password":
+                raise web.HTTPForbidden()
+        elif operation not in ("list", "usage", "create", "lock", "unlock", "reset", "sudo.grant", "sudo.revoke"):
+            raise web.HTTPBadRequest()
+        if operation == "usage":
+            target = local_account(body.get("username"))
+            return await worker(target.pw_uid, {"action": "storage.usage"})
+        payload = {key: body.get(key) for key in ("username", "password", "newPassword")}
+        payload.update(actor=session["account"].pw_name, operation=operation)
+        async with ClientSession(connector=UnixConnector(path="/run/neon-accounts/api.sock"), timeout=ClientTimeout(total=45)) as client:
+            async with client.post("http://accounts/operate", json=payload) as result:
+                data = await result.json()
+                if operation not in ("list", "usage"):
+                    target = data.get("target", "") if result.status == 200 else ""
+                    sessions.event(session["uid"], "account-" + operation + ("-ok:" + target if result.status == 200 else "-failed"), session["peer"])
+                return web.json_response(data, status=result.status)
 
     async def permit(appid, action, uid, revision=None):
         app = (await registry(uid)).get(appid)
@@ -863,6 +904,8 @@ async def main():
             web.post("/security", security),
             web.post("/rpc", rpc),
             web.post("/permissions", permissions),
+            web.post("/account", accounts),
+            web.post("/administration", accounts),
             web.get("/stream/{kind}/{id}", stream),
         ]
     )

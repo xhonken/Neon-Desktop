@@ -1,3 +1,4 @@
+import { credentialsDialog, accountSessions } from "../account-ui.js";
 import { t } from "../i18n.js";
 import { el, button, field, bytes, confirmAction } from "../ui.js";
 import { wallpaperControls } from "../wallpaper.js";
@@ -150,31 +151,33 @@ export async function mount(w, c) {
             el("code", { text: String(c.identity[key]) }),
           ),
         );
-      note(
-        "Your Linux account is authoritative. Password changes currently use passwd over SSH; a dedicated PAM password-change flow is not yet enabled.",
-      );
-    } else if (section === "Security") {
-      const b = await c.api("security");
-      note("Active sessions belong to your Linux account.");
-      for (const s of b.sessions)
-        main.append(
-          el(
-            "div",
-            { class: "settings-card" },
-            el("strong", { text: s.current ? "This session" : "Web session" }),
-            el("p", {
-              class: "muted",
-              text:
-                s.peer + " · " + new Date(s.created * 1000).toLocaleString(),
-            }),
-          ),
-        );
       main.append(
-        button("Terminate other web sessions", async () => {
-          await c.api("security", {});
-          await show(section);
+        button(t("Change password"), async () => {
+          const secret = await credentialsDialog(
+            t("Change your Linux password"),
+            true,
+          );
+          if (!secret) return;
+          try {
+            await c.api("account", { operation: "password", ...secret });
+            c.notify(
+              t(
+                "Password changed. Sign in again with your new password. Your jobs are still running.",
+              ),
+            );
+            await c.api("me");
+          } catch (e) {
+            c.notify(e.message);
+          } finally {
+            secret.password = "";
+            secret.newPassword = "";
+          }
         }),
       );
+      await accountSessions(main, c);
+    } else if (section === "Security") {
+      const b = await c.api("security");
+      await accountSessions(main, c);
       main.append(el("h3", { class: "h6 mt-4", text: "Recent sign-ins" }));
       for (const e of b.events)
         note(
@@ -202,7 +205,7 @@ export async function mount(w, c) {
         ),
       );
       note(
-        "This is filesystem free space, not a measured HOME-directory total. Directory usage analysis and Trash are planned.",
+        "This is filesystem free space, not a measured HOME-directory total. Per-account storage measurement is available in Administration. Deleted files are kept in Trash.",
       );
     } else if (section === "Terminal") {
       numeric("Font size", "terminalFontSize", 13, 10, 24);

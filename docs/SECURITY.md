@@ -54,3 +54,7 @@ Only an administrator-selected catalog can supply Git sources. Exact commits, HT
 Neither Git fetch nor app code runs as root. The administrator CLI uses an unprivileged fetch process, revalidates the result and writes root-owned global packages. It does not execute repository scripts or install OS dependencies automatically. Global installation does not grant privileged execution. Each user's grants, API operations and files remain associated with that Linux UID. Updates invalidate old asset tickets and capability bindings; uninstall preserves documents outside package storage. See APP_CENTER.md for supported runtime limits.
 
 See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for the alpha.6 review, patched Python runtime and TLS1.3 policy.
+
+## Alpha.7 accounts and file recovery
+
+See [ACCOUNTS_AND_TRASH.md](ACCOUNTS_AND_TRASH.md) for the separate privileged account service, per-action PAM confirmation, self-protection, explicit sudo grants, local-account scope, private Trash and bounded descriptor-relative folder operations.

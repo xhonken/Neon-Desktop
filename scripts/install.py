@@ -190,7 +190,7 @@ caddy.write_text(
 subprocess.run(["caddy", "validate", "--config", str(caddy)], check=True)
 subprocess.run(["systemctl", "daemon-reload"], check=True)
 subprocess.run(
-    ["systemctl", "enable", "--now", "neon-broker", "neon-gateway", "caddy"], check=True
+    ["systemctl", "enable", "--now", "neon-accounts", "neon-broker", "neon-gateway", "caddy"], check=True
 )
 subprocess.run(["systemctl", "reload", "caddy"], check=True)
 subprocess.run(

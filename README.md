@@ -48,6 +48,8 @@ Open `https://YOUR_SERVER_IP/` and sign in with an existing eligible Linux accou
 
 ## Documentation
 
+- [Accounts, browser logins and Trash](docs/ACCOUNTS_AND_TRASH.md)
+
 - [Desktop foundations and keyboard navigation](docs/DESKTOP_FOUNDATION.md)
 - [Security review and login transport](docs/SECURITY_REVIEW.md)
 

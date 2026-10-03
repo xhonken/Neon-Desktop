@@ -27,6 +27,7 @@ async def main():
     def headers(r):
         return {
             "Authorization": "Bearer " + r.cookies.get(COOKIE, ""),
+            "X-Client-Agent": r.headers.get("User-Agent", "")[:300],
             "X-CSRF-Token": r.headers.get("X-CSRF-Token", ""),
             "X-Neon-Background": r.headers.get("X-Neon-Background", "0"),
             "X-Client-IP": r.headers.get("X-Forwarded-For", "unknown")
@@ -174,12 +175,21 @@ async def main():
 
     async def proxy(r):
         name = r.match_info["name"]
-        if name not in ("me", "logout", "rpc", "security", "permissions"):
+        if name not in ("me", "logout", "rpc", "security", "permissions", "account", "administration"):
             raise web.HTTPNotFound()
+        if name in ("account", "administration"):
+            raw = bytearray()
+            async for part in r.content.iter_chunked(8193):
+                raw.extend(part)
+                if len(raw) > 8192:
+                    raise web.HTTPRequestEntityTooLarge(max_size=8192, actual_size=len(raw))
+            data = bytes(raw)
+        else:
+            data = await r.read()
         async with client.request(
             r.method,
             "http://broker/" + name,
-            data=await r.read(),
+            data=data,
             headers={**headers(r), "Content-Type": "application/json"},
         ) as reply:
             raw = await reply.read()

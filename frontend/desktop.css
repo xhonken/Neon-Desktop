@@ -1087,3 +1087,28 @@ select:focus-visible,
     display: none;
   }
 }
+
+.admin-users,
+.trash-list {
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+.admin-users .settings-card,
+.trash-list .settings-card {
+  margin: 0;
+}
+.window-content > p.muted,
+.window-content > p[role="status"] {
+  margin: 8px 12px;
+}
+.settings-card p {
+  overflow-wrap: anywhere;
+}
+.file-progress progress {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.credential-dialog .field {
+  gap: 12px;
+}

@@ -4,10 +4,11 @@ Primary target: Raspberry Pi 5 / Debian 13 ARM64. Other Debian platforms require
 
 Build as an ordinary development user with `npm ci && npm run build`. Run automated tests before installation. Public release source must include the lockfile, tests, deployment units and documentation; exclude generated private state.
 
-The installer targets `/opt/neon-desktop`, creates a locked service account `neon-gateway`, installs four unit definitions and a PAM service, and configures a dedicated Caddy origin. Installed code is root-owned. Site origin is not embedded into the source repository. Install the pinned, root-owned Python runtime first with `sudo python3 scripts/install-python-runtime.py`. It uses `deploy/python-runtime.txt` in an isolated environment; system Python remains distribution-managed. Third-party JavaScript dependencies and their licenses are retained in the release installation.
+The installer targets `/opt/neon-desktop`, creates a locked service account `neon-gateway`, installs five unit definitions and a PAM service, and configures a dedicated Caddy origin. Installed code is root-owned. Site origin is not embedded into the source repository. Install the pinned, root-owned Python runtime first with `sudo python3 scripts/install-python-runtime.py`. It uses `deploy/python-runtime.txt` in an isolated environment; system Python remains distribution-managed. Third-party JavaScript dependencies and their licenses are retained in the release installation.
 
 ## Services
 
+- `neon-accounts.service`: fixed, PAM-confirmed local account management, root-only Unix socket.
 - `neon-broker.service`: privileged authentication/lifecycle boundary, Unix socket only.
 - `neon-gateway.service`: unprivileged loopback API, TCP8780.
 - `neon-worker@UID.service`: started after successful login when needed, filesystem/config/PTY worker.

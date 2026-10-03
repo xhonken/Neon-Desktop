@@ -1,3 +1,4 @@
+import { fileTask } from "../file-task.js";
 import { t } from "../i18n.js";
 import {
   el,
@@ -9,11 +10,11 @@ import {
   download,
   bytes,
 } from "../ui.js";
+let clipboard = null;
 export async function mount(w, c) {
   let path = w.state.path || ".",
     entries = [],
-    selected = new Set(),
-    clipboard = null;
+    selected = new Set();
   const toolbar = el("div", { class: "toolbar" }),
     input = el("input", {
       class: "form-control form-control-sm path-input",
@@ -151,11 +152,7 @@ export async function mount(w, c) {
               const files = JSON.parse(
                 v.dataTransfer.getData("text/neon-file"),
               );
-              for (const source of files)
-                await c.call("files.rename", {
-                  path: source,
-                  target: join(e.name) + "/" + source.split("/").at(-1),
-                });
+              await transfer(files, true, join(e.name));
               await refresh();
             } catch (err) {
               c.notify(err.message);
@@ -186,6 +183,33 @@ export async function mount(w, c) {
         await refresh();
       })();
   };
+  async function transfer(paths, cut, destination = path) {
+    const existing = new Set(
+      (await c.call("files.list", { path: destination })).entries.map(
+        (e) => e.name,
+      ),
+    );
+    const batch = [];
+    for (const source of paths) {
+      let name = source.split("/").at(-1);
+      if (existing.has(name)) {
+        name = await ask(
+          t("Name already exists. Choose a new name, or cancel to skip."),
+          name + "-copy",
+        );
+        if (!name) continue;
+        if (name.includes("/") || name === "." || name === "..")
+          throw Error(t("Enter a filename, not a path"));
+        if (existing.has(name)) throw Error(t("Name already exists"));
+      }
+      existing.add(name);
+      batch.push({
+        path: source,
+        target: (destination === "." ? "" : destination + "/") + name,
+      });
+    }
+    if (batch.length) await fileTask(c, cut ? "move" : "copy", batch);
+  }
   const actions = el("div", { class: "toolbar" });
   function terminalHere(target = path) {
     return c.open("org.neon.terminal", { state: { cwd: target } });
@@ -232,21 +256,25 @@ export async function mount(w, c) {
       }),
     ),
     button("Copy", () => {
-      clipboard = { paths: [...selected].map(join), cut: false };
+      clipboard = {
+        uid: c.identity.uid,
+        paths: [...selected].map(join),
+        cut: false,
+      };
       c.notify("Copied selection");
     }),
     button("Cut", () => {
-      clipboard = { paths: [...selected].map(join), cut: true };
+      clipboard = {
+        uid: c.identity.uid,
+        paths: [...selected].map(join),
+        cut: true,
+      };
     }),
     button(
       "Paste",
       run(async () => {
-        if (!clipboard) return;
-        for (const source of clipboard.paths)
-          await c.call(clipboard.cut ? "files.rename" : "files.copy", {
-            path: source,
-            target: join(source.split("/").at(-1)),
-          });
+        if (!clipboard || clipboard.uid !== c.identity.uid) return;
+        await transfer(clipboard.paths, clipboard.cut);
         clipboard = null;
         await refresh();
       }),
@@ -257,14 +285,18 @@ export async function mount(w, c) {
         if (
           !selected.size ||
           !(await confirmAction(
-            "Permanently delete " +
+            t("Move selected items to your trash?") +
+              " (" +
               selected.size +
-              " selected item(s)? Directories must be empty.",
+              ")",
           ))
         )
           return;
-        for (const name of selected)
-          await c.call("files.delete", { path: join(name) });
+        await fileTask(
+          c,
+          "trash",
+          [...selected].map((name) => ({ path: join(name) })),
+        );
         await refresh();
       }),
     ),
@@ -277,6 +309,7 @@ export async function mount(w, c) {
         }
       }),
     ),
+    button(t("Trash"), () => c.open("org.neon.trash")),
     button("Properties", () => {
       const e = entries.find((e) => selected.has(e.name));
       if (e)

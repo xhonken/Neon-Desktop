@@ -46,7 +46,7 @@ Third-party modules are not imported into the desktop origin. A sandboxed iframe
 
 ## Dependencies
 
-Python/aiohttp is provided by Debian. Node/npm are development/build tooling and run the isolated Chromium controller. Bootstrap CSS loads once; CodeMirror/xterm code is lazily bundled. No Java service is required by this architecture.
+Python is provided by Debian; aiohttp runs in the separately pinned environment described in UPDATES.md. Node/npm are development/build tooling and run the isolated Chromium controller. Bootstrap CSS loads once; CodeMirror/xterm code is lazily bundled. No Java service is required by this architecture.
 
 ## Alpha.3 runtime generations
 
@@ -61,3 +61,7 @@ App Center combines an administrator-controlled `/etc/neon-desktop/catalog.json`
 Preparation fetches a pinned public HTTPS Git commit without checkout/hooks/build scripts. A validated frontend-only package is reviewed, staged and activated by atomic registry replacement. New manifests refresh the desktop launcher in place. System package management uses the root-only `neon-apps` CLI, with network fetching dropped to the gateway UID. It never executes app code as root.
 
 The broker combines manifests and enforces revision-bound permissions. Scoped static asset tickets are bound to the authenticated session, app ID and current package revision. Personal asset reads pass through the UID worker's HomeFS; the gateway has no HOME access. No filesystem mirror or additional identity database is introduced. The existing SQLite grant table uses revision-qualified app keys without a schema migration.
+
+## Alpha.7 account authority
+
+A separate root-only Unix account service exposes fixed local account operations, rechecks sudo membership and authenticates each sensitive action through PAM. The broker derives the actor from the current session; gateway and user worker privileges are unchanged. Per-user disk scans run inside that user's worker. See ACCOUNTS_AND_TRASH.md for write boundaries and process-retention semantics.
