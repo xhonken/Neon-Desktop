@@ -273,9 +273,14 @@ export async function sessionPicker(c) {
             try {
               if (existing) c.wm.focus(existing);
               else
-                await c.open("org.neon.terminal", {
-                  state: { terminal: t.id },
-                });
+                await c.open(
+                  { codex: "org.neon.codex", qwen: "org.neon.qwen-coder" }[
+                    t.kind
+                  ] || "org.neon.terminal",
+                  {
+                    state: { terminal: t.id },
+                  },
+                );
             } catch (e) {
               c.notify(e.message);
             }

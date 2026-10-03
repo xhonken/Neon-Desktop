@@ -16,8 +16,9 @@ import termios
 import time
 import uuid
 from pathlib import Path
-from aiohttp import web, ClientSession, UnixConnector, ClientTimeout, WSMsgType
+from aiohttp import web, ClientSession, UnixConnector, ClientTimeout, WSMsgType, ClientError
 from .file_operations import FileOperations
+from . import coding_apps
 from .fs import HomeFS, clean
 from .app_packages import AppStore
 from .workbench import Workbench, GENERATION, ROOT, admit, ssh_argv
@@ -351,6 +352,23 @@ async def main():
                 raise ValueError("Expected object")
             fs.write(config + "/desktop.json", json.dumps(b["value"]).encode())
             result = {"ok": True}
+        elif action == "coding.info":
+            kind = b.get('kind')
+            if not isinstance(kind, str) or kind not in coding_apps.TOOLS:
+                raise ValueError('Invalid coding application')
+            coding_apps.command(kind)
+            entry = coding_apps.settings()[kind]
+            result = {'ready': True, 'version': entry.get('version', '')}
+            if kind == 'qwen':
+                result['model'] = entry.get('model', '')
+                try:
+                    async with ClientSession(timeout=ClientTimeout(total=3)) as client:
+                        async with client.get(entry['base_url'].rstrip('/') + '/models') as response:
+                            data = await response.json()
+                            result['ready'] = response.status == 200 and any(m.get('id') == result['model'] for m in data.get('data', []))
+                except (OSError, asyncio.TimeoutError, ValueError, KeyError, ClientError):
+                    result['ready'] = False
+                result['message'] = 'The configured Qwen server is unavailable. Check the server connection and reopen this app.'
         elif action == "terminal.list":
             result = {
                 "terminals": [
@@ -374,12 +392,16 @@ async def main():
                 raise ValueError("Terminal limit reached")
             admit(a.pw_dir)
             kind = b.get("kind", "shell")
+            if not isinstance(kind, str):
+                raise ValueError("Invalid terminal kind")
             argv = [a.pw_shell, "-l"]
             if kind == "text":
                 argv = ["/usr/bin/w3m", "https://www.debian.org"]
             elif kind == "ssh":
                 profile = workbench.selected_profile(b)
                 argv = ssh_argv(profile, a.pw_dir)
+            elif kind in coding_apps.TOOLS:
+                argv = coding_apps.command(kind, b.get('mode', 'start'))
             elif kind != "shell":
                 raise ValueError("Invalid terminal kind")
             ended = [k for k, t in terminals.items() if not t.alive and not t.clients]
@@ -388,7 +410,7 @@ async def main():
             env = dict(os.environ)
             if kind == "ssh":
                 env.update(await workbench.agent_env())
-            cwd_fd = fs.open(b.get("cwd", "."), os.O_RDONLY | os.O_DIRECTORY) if kind == "shell" else None
+            cwd_fd = fs.open(b.get("cwd", "."), os.O_RDONLY | os.O_DIRECTORY) if kind == "shell" or kind in coding_apps.TOOLS else None
             try:
                 t = Terminal(argv, env, cwd_fd)
             finally:
@@ -401,6 +423,8 @@ async def main():
                 else ("Text browser" if kind == "text" else "Local terminal")
             )
             t.host = profile["host"] if kind == "ssh" else ""
+            if kind in coding_apps.TOOLS:
+                t.name = coding_apps.TOOLS[kind][2] + (' · sign in' if b.get('mode') == 'login' else '')
             terminals[t.id] = t
             result = {"id": t.id, "alive": True}
         elif action == "terminal.claim":

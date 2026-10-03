@@ -613,6 +613,29 @@ button {
   padding: 10px;
   background: #080e13;
 }
+.coding-start {
+  padding: 24px;
+  overflow: auto;
+  max-width: 900px;
+}
+.coding-start label {
+  display: block;
+  margin: 20px 0 8px;
+}
+.coding-start label input {
+  margin-top: 8px;
+}
+.coding-start .toolbar {
+  flex-wrap: wrap;
+  padding-left: 0;
+}
+.coding-folders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 180px;
+  overflow: auto;
+}
 .terminal-host .xterm {
   height: 100%;
 }

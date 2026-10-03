@@ -21,9 +21,21 @@ The following were verified on a Raspberry Pi 5, 8 GB, ARM64, Debian 13 / Raspbe
 | Applications | Eleven core apps including App Center, Trash and administrator-only Administration; Git catalog, personal and global stores, sandbox SDK and revision-bound grants | Actual HTTPS Git/PAM/GUI install, update, uninstall; two-user visibility/ownership, stale asset/grant rejection; real catalog intentionally empty |
 | Deployment | Caddy, systemd units, PAM policy, installer, source package tool and CI definition | Real host reboot, automatic gateway/broker startup, verified TLS from another LAN host |
 
-Automated baseline: **44 Python tests and 6 JavaScript tests pass**. Both installed graphical suites and the disposable second-account isolation suite pass. The installed Node runtime is 24.21.0; Puppeteer is pinned to 25.12.0. npm audit reported zero known vulnerabilities at verification time; this is a time-specific dependency check, not a security certification. GitHub Actions has not run remotely because this repository has not been published.
+Automated baseline: **47 Python tests and 6 JavaScript tests pass**. Both installed graphical suites and the disposable second-account isolation suite pass. The installed Node runtime is 24.21.0; Puppeteer is pinned to 25.12.0. npm audit reported zero known vulnerabilities at verification time; this is a time-specific dependency check, not a security certification. GitHub Actions has not run remotely because this repository has not been published.
 
 On Raspberry Pi OS the memory cgroup controller had to be enabled in the boot command line and verified after a real reboot. The installer and broker now fail closed if it is unavailable. Actual browser limits: 1 GiB memory.high, 1.5 GiB memory.max, 256 MiB memory.swap.max, 150% CPU and 160 tasks. A live 13-process Chromium session ran as the intended UID with renderer seccomp and no OOM events during the recorded check.
+
+## Optional coding applications
+
+Codex and Qwen Coder can be enabled by an administrator on selected hosts; see
+[CODING_APPS.md](CODING_APPS.md). They add two optional apps to the eleven-app
+baseline. Installed HTTPS/PAM acceptance passed for the actual Codex interface,
+encrypted per-user keyring, project directories containing spaces, real process
+UID/cwd, reload/logout persistence and second-account isolation. The real Codex
+credential-store roundtrip passed with a synthetic test value and no plaintext
+auth.json. Qwen's unavailable-model state was verified graphically. Personal
+OpenAI authentication/inference and real Qwen model inference remain separate
+acceptance steps; the configured model server was unreachable during this check.
 
 ## Incomplete areas and release gates
 

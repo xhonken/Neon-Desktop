@@ -7,6 +7,8 @@ import { el, button } from "./ui.js";
 import { WindowManager } from "./wm.js";
 import { connection, sessionPicker } from "./connection.js";
 const loaders = {
+  "org.neon.codex": () => import("./apps/coding.js"),
+  "org.neon.qwen-coder": () => import("./apps/coding.js"),
   "org.neon.administration": () => import("./apps/administration.js"),
   "org.neon.trash": () => import("./apps/trash.js"),
   "org.neon.jobs": () => import("./apps/jobs.js"),

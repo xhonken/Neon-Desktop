@@ -21,6 +21,7 @@ from pathlib import Path
 from .http_limits import login_body
 from aiohttp import web, ClientSession, UnixConnector, ClientTimeout, WSMsgType
 from .credentials import credential_version
+from . import coding_apps
 from .accounts import is_admin, account as local_account
 from .workbench import GENERATION, ROOT as RELEASE_ROOT, admit, resources
 from .app_packages import (
@@ -52,6 +53,7 @@ ACTION_PERMISSION = {
     "jobs.": "terminal",
     "resources.": "system-information",
     "terminal.": "terminal",
+    "coding.": "terminal",
     "session.": "terminal",
     "ssh.": "ssh",
     "browser.": "network",
@@ -198,6 +200,8 @@ def manifests():
     result = {}
     for file in APPROOT.glob("*/manifest.json"):
         data = json.loads(file.read_text())
+        if data['id'] in {v[0] for v in coding_apps.TOOLS.values()} and data['id'] not in coding_apps.available_apps():
+            continue
         if (
             not re.fullmatch(r"[a-z][a-z0-9.-]{2,100}", data["id"])
             or data["id"] != file.parent.name

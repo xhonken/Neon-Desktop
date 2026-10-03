@@ -1,0 +1,17 @@
+{
+  "id": "org.neon.codex",
+  "name": "Codex",
+  "version": "0.1.0-alpha.7",
+  "category": "development",
+  "pinnable": true,
+  "runtime": "core",
+  "icon": "C›",
+  "window": {
+    "width": 1000,
+    "height": 650,
+    "minWidth": 400,
+    "minHeight": 320,
+    "resizable": true
+  },
+  "permissions": ["terminal", "user-files"]
+}

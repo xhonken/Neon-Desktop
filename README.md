@@ -48,6 +48,8 @@ Open `https://YOUR_SERVER_IP/` and sign in with an existing eligible Linux accou
 
 ## Documentation
 
+- [Codex and Qwen Coder applications](docs/CODING_APPS.md)
+
 - [Accounts, browser logins and Trash](docs/ACCOUNTS_AND_TRASH.md)
 
 - [Desktop foundations and keyboard navigation](docs/DESKTOP_FOUNDATION.md)

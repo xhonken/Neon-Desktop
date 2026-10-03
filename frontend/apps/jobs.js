@@ -160,7 +160,12 @@ export async function mount(w, c) {
                   "div",
                   { class: "toolbar" },
                   button("Open view", () =>
-                    c.open("org.neon.terminal", { state: { terminal: t.id } }),
+                    c.open(
+                      { codex: "org.neon.codex", qwen: "org.neon.qwen-coder" }[
+                        t.kind
+                      ] || "org.neon.terminal",
+                      { state: { terminal: t.id } },
+                    ),
                   ),
                   button(
                     "Rename",

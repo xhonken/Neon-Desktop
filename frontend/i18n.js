@@ -1,5 +1,23 @@
 let language = "en";
 const sv = {
+  "Project folder": "Projektmapp",
+  "Folder inside your home directory": "Mapp i din hemkatalog",
+  "Start new session": "Starta ny session",
+  "Resume saved session": "Fortsätt sparad session",
+  "Sign in to Codex": "Logga in i Codex",
+  "Browse folders": "Bläddra bland mappar",
+  "New folder": "Ny mapp",
+  Ready: "Redo",
+  "Code with Codex in your own Linux account. Sign in with your personal ChatGPT account.":
+    "Koda med Codex i ditt eget Linux-konto. Logga in med ditt personliga ChatGPT-konto.",
+  "Code with Qwen Coder using our configured Qwen3-Coder-Next server.":
+    "Koda med Qwen Coder via vår konfigurerade Qwen3-Coder-Next-server.",
+  "Closing the window or signing out keeps the session running. Use Stop process to end it.":
+    "Sessionen fortsätter när du stänger fönstret eller loggar ut. Använd Stop process för att avsluta den.",
+  "Codex credentials use your encrypted OS keyring. On first use, choose its password in the terminal. Device sign-in is completed in your browser.":
+    "Codex-inloggningen sparas i din krypterade systemnyckelring. Välj dess lösenord i terminalen vid första starten. Slutför enhetsinloggningen i din webbläsare.",
+  "Session started. Reopen it from Server sessions.":
+    "Sessionen har startat. Öppna den igen via Server sessions.",
   Trash: "Papperskorg",
   "Your current password": "Ditt nuvarande lösenord",
   "New password": "Nytt lösenord",

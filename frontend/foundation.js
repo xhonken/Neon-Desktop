@@ -221,7 +221,12 @@ export function foundation(c, host, top, right) {
                 );
                 return w
                   ? c.wm.focus(w)
-                  : c.open("org.neon.terminal", { state: { terminal: s.id } });
+                  : c.open(
+                      { codex: "org.neon.codex", qwen: "org.neon.qwen-coder" }[
+                        s.kind
+                      ] || "org.neon.terminal",
+                      { state: { terminal: s.id } },
+                    );
               },
             })),
         );

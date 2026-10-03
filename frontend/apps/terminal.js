@@ -1,6 +1,7 @@
 import { t } from "../i18n.js";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { el, button, ask, confirmAction } from "../ui.js";
 import {
@@ -31,6 +32,12 @@ export async function mount(w, c) {
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
+  term.loadAddon(
+    new WebLinksAddon((event, uri) => {
+      if (/^https?:\/\//i.test(uri))
+        window.open(uri, "_blank", "noopener,noreferrer");
+    }),
+  );
   term.open(host);
   let id = w.state.terminal,
     stream,
@@ -167,9 +174,12 @@ export async function mount(w, c) {
       }
     }),
   );
-  if (c.app.id === "org.neon.terminal") {
+  if (
+    ["org.neon.terminal", "org.neon.codex", "org.neon.qwen-coder"].includes(
+      c.app.id,
+    )
+  ) {
     toolbar.append(
-      button("SSH connections", () => c.open("org.neon.connections")),
       button("Take control", async () => {
         try {
           await c.call("terminal.claim", { id, client: c.client });
@@ -179,6 +189,11 @@ export async function mount(w, c) {
         }
       }),
     );
+    if (c.app.id === "org.neon.terminal")
+      toolbar.append(
+        button("SSH connections", () => c.open("org.neon.connections")),
+      );
+    else toolbar.append(button("New project session", () => c.open(c.app.id)));
   }
   w.cleanup = () => {
     stream.dispose();
