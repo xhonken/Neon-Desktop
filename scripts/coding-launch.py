@@ -132,7 +132,10 @@ def main():
         env.update(OPENAI_API_KEY='local-not-a-secret', OPENAI_BASE_URL=base, OPENAI_MODEL=model,
                    QWEN_CODE_SYSTEM_DEFAULTS_PATH='/etc/neon-desktop/qwen-defaults.json',
                    DISABLE_AUTOUPDATER='1', DISABLE_TELEMETRY='1')
-        argv = [str(BIN / 'qwen'), '--auth-type', 'openai', '--openai-base-url', base, '--model', model, '--approval-mode', 'default']
+        argv = [str(BIN / 'qwen'), '--auth-type', 'openai', '--openai-base-url', base, '--model', model]
+        # Qwen's parser treats repeated approval options as an array.
+        if not any(arg == '--approval-mode' or arg.startswith('--approval-mode=') for arg in extra):
+            argv += ['--approval-mode', 'default']
         if mode == 'resume': argv += ['--resume']
         if cli: argv += extra
     os.execvpe(argv[0], argv, env)
