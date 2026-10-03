@@ -95,7 +95,10 @@ def main():
     os.umask(0o077)
     kind = sys.argv[1] if len(sys.argv) > 1 else ''
     mode = sys.argv[2] if len(sys.argv) > 2 else 'start'
-    if kind not in TOOLS or mode not in ({'start', 'resume', 'login'} if kind == 'codex' else {'start', 'resume'}):
+    cli = mode == '--cli'
+    extra = sys.argv[3:] if cli else []
+    info_only = cli and any(arg in ('--help', '-h', '--version', '-V') for arg in extra)
+    if kind not in TOOLS or (not cli and mode not in ({'start', 'resume', 'login'} if kind == 'codex' else {'start', 'resume'})):
         raise RuntimeError('Invalid application or action')
     config = settings().get(kind, {})
     if config.get('enabled') is not True:
@@ -105,29 +108,33 @@ def main():
     if kind == 'codex':
         private_dir(home / '.codex')
         env['CODEX_HOME'] = str(home / '.codex')
-        env = keyring(home, env)
+        if not info_only:
+            env = keyring(home, env)
         argv = [str(BIN / 'codex'), '-c', 'cli_auth_credentials_store="keyring"', '-c', 'check_for_update_on_startup=false']
         if mode == 'login':
             argv += ['login', '--device-auth']
         else:
             argv += ['--sandbox', 'workspace-write', '--ask-for-approval', 'on-request']
             if mode == 'resume': argv += ['resume']
+        if cli: argv += extra
     else:
         private_dir(home / '.qwen')
         base = config.get('base_url', '')
         model = config.get('model', '')
-        try:
-            with urllib.request.urlopen(base.rstrip('/') + '/models', timeout=5) as response:
-                models = json.load(response)
-            if model not in [item.get('id') for item in models.get('data', [])]:
-                raise RuntimeError('The configured model is not available')
-        except Exception as e:
-            raise RuntimeError('Qwen server unavailable. Ask the administrator to check the model connection.') from e
+        if not info_only:
+            try:
+                with urllib.request.urlopen(base.rstrip('/') + '/models', timeout=5) as response:
+                    models = json.load(response)
+                if model not in [item.get('id') for item in models.get('data', [])]:
+                    raise RuntimeError('The configured model is not available')
+            except Exception as e:
+                raise RuntimeError('Qwen server unavailable. Ask the administrator to check the model connection.') from e
         env.update(OPENAI_API_KEY='local-not-a-secret', OPENAI_BASE_URL=base, OPENAI_MODEL=model,
                    QWEN_CODE_SYSTEM_DEFAULTS_PATH='/etc/neon-desktop/qwen-defaults.json',
                    DISABLE_AUTOUPDATER='1', DISABLE_TELEMETRY='1')
         argv = [str(BIN / 'qwen'), '--auth-type', 'openai', '--openai-base-url', base, '--model', model, '--approval-mode', 'default']
         if mode == 'resume': argv += ['--resume']
+        if cli: argv += extra
     os.execvpe(argv[0], argv, env)
 
 

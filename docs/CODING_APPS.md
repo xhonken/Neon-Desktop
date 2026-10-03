@@ -1,5 +1,20 @@
 # Codex and Qwen Coder
 
+## Terminal use
+
+Run `codex` or `qwen-coder` from the ordinary Neon Terminal in your project
+directory. `qwen` is an alias for `qwen-coder`. Normal CLI arguments are passed
+through, including `codex login --device-auth`, `codex resume`, and
+`qwen-coder --resume`. Help and version commands work without prompting for the
+keyring or requiring the model server. Each user retains private credentials
+and history. Run without sudo.
+
+Configure with `--terminal-only` to hide the separate desktop applications while
+keeping the shell commands available to all Linux users. Existing processes are
+retained; no account history is deleted. The remaining sections describe the
+optional desktop presentation and shared tool installation.
+
+
 These optional administrator-installed applications open as separate Neon Desktop
 windows. Each offers a HOME project folder picker, a new session and a saved
 session picker. The interactive interface is the official CLI running in the

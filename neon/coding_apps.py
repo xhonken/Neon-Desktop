@@ -27,7 +27,8 @@ def enabled(kind):
 
 
 def available_apps():
-    return {info[0] for kind, info in TOOLS.items() if enabled(kind)}
+    return {info[0] for kind, info in TOOLS.items()
+            if enabled(kind) and settings()[kind].get('desktop_enabled', True)}
 
 
 def command(kind, mode='start'):

@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha.7 — unreleased
 
+- Support ordinary `codex`, `qwen-coder` and `qwen` shell commands with optional terminal-only installation.
+
 Adds optional administrator-installed Codex and Qwen Coder apps with project selection, persistent per-user CLI sessions, native desktop recovery, encrypted per-user Codex keyrings and a configured local Qwen model connection. Apps are enabled per host and remain absent on unconfigured deployments. See docs/CODING_APPS.md.
 
 Adds private recoverable Trash, bounded recursive folder copy, shared Files clipboard, conflict prompts and server progress. Adds Administration for local account creation/lock/reset/sudo with PAM confirmation and a separate restricted root service. Settings Account now supports self-password changes and individual browser-login revocation. Web access revocation preserves running jobs; new accounts have no sudo by default. See docs/ACCOUNTS_AND_TRASH.md.

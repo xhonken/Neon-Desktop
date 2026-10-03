@@ -43,3 +43,10 @@ class CodingAppsTests(unittest.TestCase):
             with self.assertRaises(ValueError): coding_apps.command('qwen')
         self.config.write_text('[]')
         with self.assertRaises(ValueError): coding_apps.settings()
+
+    def test_terminal_only_keeps_tools_enabled_without_desktop_entries(self):
+        self.config.write_text(json.dumps({'codex': {'enabled': True, 'desktop_enabled': False}, 'qwen': {'enabled': True, 'desktop_enabled': False}}))
+        self.assertTrue(coding_apps.enabled('codex'))
+        self.assertEqual(coding_apps.available_apps(), set())
+        self.assertNotIn('org.neon.codex', manifests())
+        self.assertNotIn('org.neon.qwen-coder', manifests())

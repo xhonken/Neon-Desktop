@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 p = argparse.ArgumentParser()
 p.add_argument('--qwen-base-url', required=True, help='OpenAI-compatible model URL; use a loopback SSH tunnel for remote models')
 p.add_argument('--qwen-model', default='qwen3-coder-next')
+p.add_argument('--terminal-only', action='store_true', help='Expose shell commands without separate desktop apps')
 a = p.parse_args()
 if os.geteuid() != 0:
     raise SystemExit('Run through administrative SSH/sudo')
@@ -28,8 +29,13 @@ for kind, package in [('codex', '@openai/codex'), ('qwen', '@qwen-code/qwen-code
     launcher = Path('/usr/local/bin') / command
     launcher.write_text('#!/bin/sh\nexec /opt/neon-python-3.14.3/bin/python /opt/neon-desktop/current/scripts/coding-launch.py ' + kind + ' "$@"\n')
     launcher.chmod(0o755)
+    for alias in (['codex'] if kind == 'codex' else ['qwen', 'qwen-coder']):
+        launcher = Path('/usr/local/bin') / alias
+        launcher.write_text('#!/bin/sh\nexec /opt/neon-python-3.14.3/bin/python /opt/neon-desktop/current/scripts/coding-launch.py ' + kind + ' --cli "$@"\n')
+        launcher.chmod(0o755)
 config = {'codex': {'enabled': True, 'version': versions['codex']},
           'qwen': {'enabled': True, 'version': versions['qwen'], 'base_url': a.qwen_base_url.rstrip('/'), 'model': a.qwen_model}}
+for entry in config.values(): entry['desktop_enabled'] = not a.terminal_only
 defaults = {'$version': 4,
     'general': {'disableAutoUpdate': True, 'disableUpdateNag': True},
     'privacy': {'usageStatisticsEnabled': False}, 'telemetry': {'enabled': False},
