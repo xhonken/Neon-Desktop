@@ -1,10 +1,10 @@
-# Implementation status — 0.1.0-alpha.7
+# Implementation status — 0.1.0-alpha.8
 
 This is a working first alpha, not completion of the full project plan. The confirmed product name is Neon Desktop. It is independently implemented; no Pi-2000 source or migration layer is included.
 
 ## Installed and exercised
 
-The following were verified on a Raspberry Pi 5, 8 GB, ARM64, Debian 13 / Raspberry Pi OS, using the installed Caddy HTTPS origin through 2026-10-03. Client browser automation used the actual login page and PAM; it did not bypass authentication with a test token.
+The following were verified on a Raspberry Pi 5, 8 GB, ARM64, Debian 13 / Raspberry Pi OS, using the installed Caddy HTTPS origin through 2026-10-04. Client browser automation used the actual login page and PAM; it did not bypass authentication with a test token.
 
 | Area | Current implementation | Verification / boundary |
 | --- | --- | --- |
@@ -21,7 +21,7 @@ The following were verified on a Raspberry Pi 5, 8 GB, ARM64, Debian 13 / Raspbe
 | Applications | Eleven core apps including App Center, Trash and administrator-only Administration; Git catalog, personal and global stores, sandbox SDK and revision-bound grants | Actual HTTPS Git/PAM/GUI install, update, uninstall; two-user visibility/ownership, stale asset/grant rejection; real catalog intentionally empty |
 | Deployment | Caddy, systemd units, PAM policy, installer, source package tool and CI definition | Real host reboot, automatic gateway/broker startup, verified TLS from another LAN host |
 
-Automated baseline: **48 Python tests and 6 JavaScript tests pass**. Both installed graphical suites and the disposable second-account isolation suite pass. The installed Node runtime is 24.21.0; Puppeteer is pinned to 25.12.0. npm audit reported zero known vulnerabilities at verification time; this is a time-specific dependency check, not a security certification. GitHub Actions has not run remotely because this repository has not been published.
+Historical installed baseline: **52 Python tests and 11 JavaScript tests pass**. Both installed graphical suites and the disposable second-account isolation suite pass. The installed Node runtime is 24.21.0; Puppeteer is pinned to 25.12.0. npm audit reported zero known vulnerabilities at verification time; this is a time-specific dependency check, not a security certification. Current source checks cover **71 Python tests and 21 JavaScript tests**; installed acceptance and source publication are recorded separately below.
 
 On Raspberry Pi OS the memory cgroup controller had to be enabled in the boot command line and verified after a real reboot. The installer and broker now fail closed if it is unavailable. Actual browser limits: 1 GiB memory.high, 1.5 GiB memory.max, 256 MiB memory.swap.max, 150% CPU and 160 tasks. A live 13-process Chromium session ran as the intended UID with renderer seccomp and no OOM events during the recorded check.
 
@@ -53,6 +53,12 @@ acceptance steps; the configured model server was unreachable during this check.
 - The public source package excludes private site configuration and test artifacts. A clean source build is checked on the development Pi. A fresh installation on a second pristine OS image remains unverified; do not infer cross-distribution support from one host.
 
 Client devices must trust the deployment's local Caddy CA for private-IP HTTPS. Only the public certificate may be exported. Source packaging and a local Git history do not imply GitHub publication.
+
+## Source regression fixes — 2026-10-03
+
+App permission revocation now removes the correct revision-bound grants atomically, including legacy entries. Repeated approvals work, revoked file/notification calls fail, and other users/apps remain unaffected. Stale window updates cannot recreate closed windows; bounded close records also protect older clients. Terminal shutdown reaches slow views even with a full output queue.
+
+Checkout verification passes **71 Python tests, 12 JavaScript tests and the frontend build**, including eight HTTP permission tests, cross-device close/reconnect/restart cases and real PTY EOF with a full queue. These fixes have not yet been deployed or rechecked through installed HTTPS/PAM acceptance.
 
 ## Session retention verification (alpha.2)
 
@@ -107,3 +113,84 @@ The security review reproduced and fixed stale web access after Linux lock/passw
 ## Alpha.7 personal files and accounts
 
 See [ACCOUNTS_AND_TRASH.md](ACCOUNTS_AND_TRASH.md) for implemented file recovery, copy limits, explicit sudo administration, self-password changes and browser-login management. Existing workers/browser/jobs are preserved; revoking web access is separate from stopping Linux processes.
+
+## Shared workspace and terminal activation (post-alpha.7)
+
+Clicking inside a terminal takes writing/resize control without replacing its
+WebSocket or replaying its output. Keyboard focus and typing can also claim
+control. Input typed during a connected claim is sent in order; disconnected
+input is discarded. Current workers notify other views when ownership changes,
+and retained workers continue using their existing claim API.
+
+Open windows now follow the Linux account between devices through private
+`workspace.json` state. Stable window IDs and change sets merge independent
+client changes while keeping device preferences separate. The first read
+migrates the latest old device layout. Window geometry, minimized/maximized
+state and editor recovery travel with the window; geometry fits the new screen.
+Recovery is bounded to 50 windows and still respects the recovery preference.
+
+Installed HTTPS/PAM acceptance on 2026-10-03 passed with a disposable Linux
+account and two isolated browser profiles at different viewport sizes: four
+automatically restored windows, unsaved Code text, minimized/maximized state,
+unchanged terminal IDs/PIDs, immediate typing after click-based control transfer,
+offline/reconnect without input replay, reload, and a stale view not restoring
+an explicitly closed window. Actual PTY UID, file content, ownership and private
+workspace permissions were checked; no JavaScript page errors occurred. The
+cross-device screenshot was visually inspected. The original five owner
+workers and Chromium retained their process IDs across deployment. Run
+`tests/live_desktop_continuity.py CONTROLLER_LINUX_USER` as root on a development
+host for this acceptance; it stops and removes only its own disposable account.
+
+The installed disposable second-account regression also passed real PAM,
+file ownership, cross-HOME denial, identity-override rejection, Origin/CSRF/app
+permissions, private worker sockets, logout revocation, root denial and login
+throttling.
+
+## In-place session recovery — 2026-10-04
+
+Trusted input on the visible desktop now renews idle access. Background polling
+and streamed output do not renew it. Idle or absolute expiry opens an opaque PAM
+sign-in dialog over the same document; windows, unsaved text and running
+terminals resume after authentication. Protected app imports wait for valid
+access, and requests rejected with HTTP401 can retry once with fresh CSRF.
+Initial configuration-read failures retain the login form for another attempt.
+See [SESSION_RECOVERY.md](SESSION_RECOVERY.md) for policy and recovery details.
+
+Checkout verification passes **71 Python tests, 21 JavaScript tests and the
+frontend build**. Installed HTTPS/PAM acceptance passed startup-failure retry,
+idle expiry without streams, real input renewal, loading a new app after expiry,
+absolute expiry and offline recovery without document replacement. The same
+editor DOM and terminal ID/PID survived; kernel UID and an actual PTY-written
+file confirmed the process identity. The existing persistence suite also passed
+local/OpenSSH process retention, unsaved drafts, in-place reauthentication,
+Chromium retention and terminal reattachment, with no JavaScript page errors.
+
+The deployment contains only this frontend change over the previously installed
+release; the pending backend regression fixes above remain undeployed. All eight
+existing owner worker/browser services retained their original process IDs.
+Disposable acceptance accounts and their processes were removed. An already
+open client needs one reload to receive the updated frontend; subsequent session
+expiry is recovered within the same page.
+
+The same immutable release was subsequently installed on a second Debian 13
+x86-64 host. Its installed content fingerprint matches the development release;
+native helpers were compiled for x86-64 and runtime dependency pins match.
+Both HTTPS/PAM session-recovery and persistence suites passed there, including
+actual terminal UID/PID, OpenSSH and Chromium retention. All four pre-existing
+workers and three terminal processes retained their IDs. Site configuration was
+unchanged, HTTPS certificate verification passed, and disposable accounts and
+staging files were removed. This verifies an update of an existing installation;
+a fresh installation on a pristine second OS remains a separate release gate.
+
+## Public source version (alpha.8)
+
+The first public source version includes the shared workspace, terminal input
+activation, session recovery and source regression fixes described above.
+Package and lockfile versions agree at `0.1.0-alpha.8`. GitHub is the canonical
+repository; [VERSIONING.md](VERSIONING.md) describes checks, tags and releases.
+Site configuration, credentials, user state and acceptance artifacts are excluded.
+
+The two installed hosts remain on their verified alpha.7 immutable release.
+Publication does not deploy alpha.8 or imply installed acceptance of the
+previously pending backend fixes. Fresh-installation, broader load and
+independent security review gates remain open.

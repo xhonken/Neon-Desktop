@@ -6,8 +6,14 @@ export function connection(identity, notify) {
   let checking,
     loginDialog,
     retryTimer,
-    stopped = false;
+    stopped = false,
+    connected = true,
+    generation = 0,
+    activity = 0,
+    confirmedActivity = 0,
+    lastActivityCheck = -Infinity;
   const listeners = new Set();
+  const waiting = new Set();
   const badge = el("span", {
     class: "connection-state",
     role: "status",
@@ -18,26 +24,47 @@ export function connection(identity, notify) {
       throw Error(
         "Sign in with the original Linux account to resume this desktop.",
       );
+    const changed = !connected || identity.csrf !== me.csrf;
     Object.assign(identity, me);
+    connected = true;
     badge.textContent = "Connected";
     clearTimeout(retryTimer);
-    for (const fn of listeners) fn();
+    for (const resolve of waiting) resolve(true);
+    waiting.clear();
+    if (changed) for (const fn of listeners) fn();
   }
   async function check() {
-    if (stopped) return false;
+    if (stopped || loginDialog) return false;
     if (checking) return checking;
+    const currentGeneration = generation;
+    const currentActivity = activity;
+    const foreground = currentActivity !== confirmedActivity;
     checking = (async () => {
       try {
         const r = await fetch("/api/v1/me", {
-          headers: { "X-Neon-Background": "1" },
+          // Only actual input renews idle access; polling/output alone must not.
+          headers: { "X-Neon-Background": foreground ? "0" : "1" },
           signal: AbortSignal.timeout(8000),
         });
+        if (stopped || loginDialog || generation !== currentGeneration)
+          return false;
         if (r.status === 401) {
           requireLogin();
           return false;
         }
         if (!r.ok) throw Error("Connection unavailable");
-        recovered(await r.json());
+        const me = await r.json();
+        if (stopped || loginDialog || generation !== currentGeneration)
+          return false;
+        if (me.uid !== identity.uid || me.username !== identity.username) {
+          requireLogin();
+          return false;
+        }
+        if (foreground) {
+          confirmedActivity = currentActivity;
+          lastActivityCheck = Date.now();
+        }
+        recovered(me);
         return true;
       } catch {
         disconnected();
@@ -50,12 +77,17 @@ export function connection(identity, notify) {
   }
   function disconnected() {
     if (stopped) return;
+    connected = false;
+    if (loginDialog) return;
     badge.textContent = "Reconnecting · server jobs continue";
     clearTimeout(retryTimer);
     retryTimer = setTimeout(check, 5000);
   }
   function requireLogin() {
     if (loginDialog || stopped) return;
+    generation++;
+    connected = false;
+    clearTimeout(retryTimer);
     badge.textContent = "Sign in to reconnect · server jobs continue";
     const d = el("dialog", { class: "neon-dialog reconnect-login" });
     loginDialog = d;
@@ -107,12 +139,21 @@ export function connection(identity, notify) {
         });
         password.value = "";
         if (!result.ok) throw Error();
-        const r = await fetch("/api/v1/me");
+        const r = await fetch("/api/v1/me", {
+          headers: { "X-Neon-Background": "1" },
+          signal: AbortSignal.timeout(8000),
+        });
         if (!r.ok) throw Error();
-        recovered(await r.json());
+        const me = await r.json();
+        if (stopped) return;
+        if (me.uid !== identity.uid || me.username !== identity.username)
+          throw Error();
         d.close();
         d.remove();
         loginDialog = null;
+        confirmedActivity = activity;
+        lastActivityCheck = Date.now();
+        recovered(me);
       } catch {
         password.value = "";
         error.textContent = "Sign in failed.";
@@ -126,20 +167,55 @@ export function connection(identity, notify) {
     d.showModal();
     password.focus();
   }
-  window.addEventListener("online", check);
+  function input(e) {
+    if (stopped || loginDialog || document.hidden || !e.isTrusted) return;
+    activity++;
+    if (Date.now() - lastActivityCheck >= 30000) check();
+  }
+  function visible() {
+    if (!document.hidden) check();
+  }
+  const inputEvents = ["pointerdown", "keydown", "wheel"];
+  for (const event of inputEvents)
+    document.addEventListener(event, input, { capture: true, passive: true });
+  document.addEventListener("visibilitychange", visible);
+  window.addEventListener("focus", visible);
+  window.addEventListener("online", visible);
   window.addEventListener("offline", disconnected);
+  const pollTimer = setInterval(visible, 30000);
   return {
     badge,
     check,
     disconnected,
     requireLogin,
+    async ready({ verify = false } = {}) {
+      if (stopped) return false;
+      if (verify && !loginDialog) await check();
+      if (stopped) return false;
+      if (connected && !loginDialog) return true;
+      return new Promise((resolve) => waiting.add(resolve));
+    },
     onReconnect(fn) {
       listeners.add(fn);
       return () => listeners.delete(fn);
     },
     stop() {
       stopped = true;
+      generation++;
       clearTimeout(retryTimer);
+      clearInterval(pollTimer);
+      for (const event of inputEvents)
+        document.removeEventListener(event, input, { capture: true });
+      document.removeEventListener("visibilitychange", visible);
+      window.removeEventListener("focus", visible);
+      window.removeEventListener("online", visible);
+      window.removeEventListener("offline", disconnected);
+      loginDialog?.close();
+      loginDialog?.remove();
+      loginDialog = null;
+      for (const resolve of waiting) resolve(false);
+      waiting.clear();
+      listeners.clear();
     },
   };
 }
@@ -203,6 +279,9 @@ export function reconnectingStream(c, path, handlers) {
   });
   return {
     connect,
+    isOpen() {
+      return !disposed && socket?.readyState === 1;
+    },
     send(value) {
       if (socket?.readyState === 1) socket.send(JSON.stringify(value));
     },

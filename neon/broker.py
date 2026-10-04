@@ -17,6 +17,7 @@ import sqlite3
 import struct
 import time
 from collections import defaultdict, deque
+from functools import partial
 from pathlib import Path
 from .http_limits import login_body
 from aiohttp import web, ClientSession, UnixConnector, ClientTimeout, WSMsgType
@@ -194,6 +195,72 @@ def eligible(name):
     ):
         raise ValueError("Account not eligible")
     return a
+
+
+def grant_key(app):
+    return app["id"] + "@" + app["revision"]
+
+
+async def permissions(request, *, sessions, identify, registry):
+    _, s = identify(request)
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest()
+    appid = body.get("app")
+    app = (await registry(s["uid"])).get(appid)
+    if (
+        not app
+        or app["runtime"] != "sandbox"
+        or body.get("revision") != app["revision"]
+    ):
+        raise web.HTTPBadRequest()
+    grants = body.get("permissions", [])
+    if (
+        not isinstance(grants, list)
+        or any(not isinstance(permission, str) for permission in grants)
+        or not set(grants) <= set(app["permissions"])
+        or not set(grants) <= {"user-files", "notifications"}
+    ):
+        raise web.HTTPForbidden(text="Unsupported third-party capability")
+    # Replace all grants for this user's app, including legacy and old revisions.
+    # A failed insert must leave the previous permission set intact.
+    with sessions.db:
+        sessions.db.execute(
+            "DELETE FROM grants WHERE uid=? AND (app=? OR app LIKE ?)",
+            (s["uid"], appid, appid + "@%"),
+        )
+        sessions.db.executemany(
+            "INSERT INTO grants VALUES (?,?,?)",
+            [(s["uid"], grant_key(app), p) for p in set(grants)],
+        )
+    sessions.event(s["uid"], "app-permissions", s["peer"])
+    return web.json_response({"ok": True})
+
+
+async def check_permission(appid, action, uid, revision=None, *, sessions, registry):
+    app = (await registry(uid)).get(appid)
+    if not app:
+        raise web.HTTPForbidden()
+    needed = next(
+        (p for prefix, p in ACTION_PERMISSION.items() if action.startswith(prefix)),
+        None,
+    )
+    if needed and needed not in app["permissions"]:
+        raise web.HTTPForbidden()
+    if app["runtime"] != "core":
+        if revision != app["revision"]:
+            raise web.HTTPForbidden(text="App version changed; reopen it")
+        grants = {
+            r[0]
+            for r in sessions.db.execute(
+                "SELECT permission FROM grants WHERE uid=? AND app=?",
+                (uid, grant_key(app)),
+            )
+        }
+        if (
+            not action.startswith("files.") and action != "notifications.check"
+        ) or needed not in grants:
+            raise web.HTTPForbidden(text="Application permission denied")
 
 
 def manifests():
@@ -380,9 +447,6 @@ async def main():
                 }
         return result
 
-    def grant_key(app):
-        return app["id"] + "@" + app["revision"]
-
     async def app_content(request):
         _, session = identify(request)
         available = await registry(session["uid"])
@@ -464,35 +528,6 @@ async def main():
         sessions.event(s["uid"], "logout", s["peer"])
         return web.json_response({"ok": True})
 
-    async def permissions(request):
-        _, s = identify(request)
-        body = await request.json()
-        appid = body.get("app")
-        app = (await registry(s["uid"])).get(appid)
-        if (
-            not app
-            or app["runtime"] != "sandbox"
-            or body.get("revision") != app["revision"]
-        ):
-            raise web.HTTPBadRequest()
-        grants = body.get("permissions", [])
-        if (
-            not isinstance(grants, list)
-            or not set(grants) <= set(app["permissions"])
-            or not set(grants) <= {"user-files", "notifications"}
-        ):
-            raise web.HTTPForbidden(text="Unsupported third-party capability")
-        sessions.db.execute(
-            "DELETE FROM grants WHERE uid=? AND app=?", (s["uid"], appid)
-        )
-        sessions.db.executemany(
-            "INSERT INTO grants VALUES (?,?,?)",
-            [(s["uid"], grant_key(app), p) for p in set(grants)],
-        )
-        sessions.db.commit()
-        sessions.event(s["uid"], "app-permissions", s["peer"])
-        return web.json_response({"ok": True})
-
     async def security(request):
         token, s = identify(request)
         if request.method == "POST":
@@ -560,30 +595,7 @@ async def main():
                     sessions.event(session["uid"], "account-" + operation + ("-ok:" + target if result.status == 200 else "-failed"), session["peer"])
                 return web.json_response(data, status=result.status)
 
-    async def permit(appid, action, uid, revision=None):
-        app = (await registry(uid)).get(appid)
-        if not app:
-            raise web.HTTPForbidden()
-        needed = next(
-            (p for prefix, p in ACTION_PERMISSION.items() if action.startswith(prefix)),
-            None,
-        )
-        if needed and needed not in app["permissions"]:
-            raise web.HTTPForbidden()
-        if app["runtime"] != "core":
-            if revision != app["revision"]:
-                raise web.HTTPForbidden(text="App version changed; reopen it")
-            grants = {
-                r[0]
-                for r in sessions.db.execute(
-                    "SELECT permission FROM grants WHERE uid=? AND app=?",
-                    (uid, grant_key(app)),
-                )
-            }
-            if (
-                not action.startswith("files.") and action != "notifications.check"
-            ) or needed not in grants:
-                raise web.HTTPForbidden(text="Application permission denied")
+    permit = partial(check_permission, sessions=sessions, registry=registry)
 
     def terminal_kind(id):
         if re.fullmatch(r"[a-f0-9]{32}", id):
@@ -907,7 +919,12 @@ async def main():
             web.get("/security", security),
             web.post("/security", security),
             web.post("/rpc", rpc),
-            web.post("/permissions", permissions),
+            web.post(
+                "/permissions",
+                partial(
+                    permissions, sessions=sessions, identify=identify, registry=registry
+                ),
+            ),
             web.post("/account", accounts),
             web.post("/administration", accounts),
             web.get("/stream/{kind}/{id}", stream),

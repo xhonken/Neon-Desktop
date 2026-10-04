@@ -32,9 +32,9 @@ Job records and the last 4 MiB of each output log live in private HOME storage a
 
 ## Multiple devices and views
 
-Desktop layouts are stored by browser/device identifier. Separate devices can keep different window arrangements. Browser tabs in the same browser profile share that device's layout; do not treat them as separate machines.
+Open windows are saved in an account-wide workspace and restored on another device after sign-in. Terminal IDs, editor recovery state, geometry and minimized/maximized state follow the user; geometry adapts to the new screen. Device appearance/preferences remain separate. Existing layouts migrate once from the most recently saved device layout. Window changes merge by stable IDs so an unchanged older view cannot overwrite the whole workspace. Recovery remains optional; closing a terminal window still detaches its process.
 
-New terminal sessions have one controlling view. Other views can observe output and use **Take control** to type/resize. Existing legacy terminals remain attachable but retain their old input behavior until explicitly replaced; an update never kills them to impose new behavior.
+Terminal sessions have one controlling view. Clicking inside a terminal window takes input/resize control and focuses it without reconnecting its output stream. Keyboard focus or typing in a view also requests control. Characters typed while the claim is completing are sent in order; disconnected input is discarded. Current workers notify other views when control changes. Retained older workers remain usable through their existing claim API; an update preserves their processes.
 
 Code files have a short renewable editing lease. Another view opens read-only; **Take editing control** transfers editing. Revision checks still reject stale saves. Each editor view writes its own recovery draft so it cannot overwrite another view's unsaved draft. These are cooperative same-account safeguards, not a security boundary against that same Linux user's SSH/terminal processes.
 

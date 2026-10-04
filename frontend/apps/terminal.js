@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { el, button, ask, confirmAction } from "../ui.js";
+import { terminalControl } from "../terminal-control.js";
 import {
   reconnectingStream,
   sessionPicker,
@@ -54,6 +55,35 @@ export async function mount(w, c) {
     c.save();
     await c.flush();
   }
+  const connectedStatus = () => {
+    status.textContent =
+      "Connected · " +
+      c.identity.username +
+      " · " +
+      id.slice(-8) +
+      " · kept running after sign-out";
+  };
+  const control = terminalControl({
+    claim: () => c.call("terminal.claim", { id, client: c.client }),
+    ready: () => stream?.isOpen(),
+    send: (value) => stream.send(value),
+    acquired() {
+      connectedStatus();
+      term.focus();
+      fit.fit();
+      stream.send({ type: "resize", cols: term.cols, rows: term.rows });
+    },
+    error: (e) => c.notify(e.message),
+  });
+  const activate = () =>
+    control.acquire(true).catch((e) => c.notify(e.message));
+  w.node.addEventListener("pointerdown", (e) => {
+    if (e.button === 0 && !e.target.closest("button, a, .resize-handle"))
+      activate();
+  });
+  host.addEventListener("focusin", () =>
+    control.acquire().catch((e) => c.notify(e.message)),
+  );
   stream = reconnectingStream(c, `terminal/${id}`, {
     async beforeConnect() {
       const b = await c.call("terminal.list");
@@ -82,21 +112,18 @@ export async function mount(w, c) {
       term.reset(); // The server replays its retained tail on every attachment.
       fit.fit();
       stream.send({ type: "resize", cols: term.cols, rows: term.rows });
-      status.textContent =
-        "Connected · " +
-        c.identity.username +
-        " · " +
-        id.slice(-8) +
-        " · kept running after sign-out";
+      connectedStatus();
+      if (host.contains(document.activeElement)) activate();
     },
     message(e) {
       if (e.data instanceof ArrayBuffer) term.write(new Uint8Array(e.data));
       else {
         const b = JSON.parse(e.data);
         if ("readonly" in b) {
-          term.options.disableStdin = b.readonly;
+          control.readonly(b.readonly);
           if (b.readonly)
-            status.textContent = "View only · use Take control to type";
+            status.textContent = "View only · click in this terminal to type";
+          else connectedStatus();
         }
         if (b.alive === false) {
           if (w.state.kind === "ssh")
@@ -106,17 +133,19 @@ export async function mount(w, c) {
             });
           closeTerminalViews(c, id).catch((e) => c.notify(e.message));
         }
-        if (b.error) c.notify(b.error);
+        if (b.error && !b.readonly) c.notify(b.error);
       }
     },
     close() {
+      control.reset();
       status.textContent = "Reconnecting to the same server session…";
     },
     error(e) {
+      control.reset();
       status.textContent = "Waiting to reconnect · " + e.message;
     },
   });
-  term.onData((data) => stream.send({ type: "input", data }));
+  term.onData((data) => control.input(data));
   term.onResize(({ cols, rows }) =>
     stream.send({ type: "resize", cols, rows }),
   );
@@ -179,16 +208,6 @@ export async function mount(w, c) {
       c.app.id,
     )
   ) {
-    toolbar.append(
-      button("Take control", async () => {
-        try {
-          await c.call("terminal.claim", { id, client: c.client });
-          stream.reconnect();
-        } catch (e) {
-          c.notify(e.message);
-        }
-      }),
-    );
     if (c.app.id === "org.neon.terminal")
       toolbar.append(
         button("SSH connections", () => c.open("org.neon.connections")),
@@ -196,6 +215,7 @@ export async function mount(w, c) {
     else toolbar.append(button("New project session", () => c.open(c.app.id)));
   }
   w.cleanup = () => {
+    control.dispose();
     stream.dispose();
     observer.disconnect();
     term.dispose();

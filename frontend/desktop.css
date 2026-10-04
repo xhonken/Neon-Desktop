@@ -907,6 +907,9 @@ button {
   display: grid;
   gap: 12px;
 }
+.reconnect-login::backdrop {
+  background: #0b1018;
+}
 @media (max-width: 800px) {
   .connection-state {
     max-width: 90px;

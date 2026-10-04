@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.1.0-alpha.7 — unreleased
+## 0.1.0-alpha.8 — 2026-10-04
+
+- Keep active desktops authenticated through input-driven checks and recover expired access behind an opaque in-place lock. Preserve open windows, drafts and processes; wait before protected lazy imports and resume only explicitly unauthorized requests after PAM. Keep the login form usable after a startup connection failure.
+- Fix app permission revocation and repeated approval by atomically replacing the user's revision-bound grants, including legacy grants. Add HTTP authorization regressions for revocation, reapproval, isolation and rollback.
+- Prevent stale device updates from restoring closed windows; distinguish new opens from updates and retain bounded close records for older clients.
+- Deliver terminal end notifications even when a slow view's output queue is full.
+- Publish the first public source version with automated checks, versioned prereleases and source archives. Existing installations remain on their separately verified alpha.7 release until explicitly updated.
+
+## 0.1.0-alpha.7 — local development
+
+- Restore the same open windows across devices with a shared account workspace, stable window identities and merged changes. Clicking in a terminal takes input control without reconnecting its output stream; minimized/maximized state and viewport fitting are retained.
 
 - Support ordinary `codex`, `qwen-coder` and `qwen` shell commands with optional terminal-only installation.
 

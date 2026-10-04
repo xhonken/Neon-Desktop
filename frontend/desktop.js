@@ -6,6 +6,8 @@ import { createWallpaper } from "./wallpaper.js";
 import { el, button } from "./ui.js";
 import { WindowManager } from "./wm.js";
 import { connection, sessionPicker } from "./connection.js";
+import { sessionRequest } from "./requests.js";
+import { windowChanges } from "./workspace.js";
 const loaders = {
   "org.neon.codex": () => import("./apps/coding.js"),
   "org.neon.qwen-coder": () => import("./apps/coding.js"),
@@ -24,10 +26,11 @@ const loaders = {
 export async function start(identity) {
   document.title = "Neon Desktop";
   document.documentElement.dataset.bsTheme = "dark";
-  const css = el("link", { rel: "stylesheet", href: "/assets/desktop.css" });
-  document.head.append(css);
+  if (!document.querySelector('link[href="/assets/desktop.css"]'))
+    document.head.append(
+      el("link", { rel: "stylesheet", href: "/assets/desktop.css" }),
+    );
   const root = document.querySelector("#root");
-  root.replaceChildren();
   const apps = new Map(identity.apps.map((a) => [a.id, a]));
   let config = {},
     timer,
@@ -47,26 +50,7 @@ export async function start(identity) {
   let pendingSave = false,
     saveQueue = Promise.resolve();
   async function api(path, body) {
-    let r;
-    try {
-      r = await fetch("/api/v1/" + path, {
-        method: body ? "POST" : "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": identity.csrf,
-          "X-Neon-Background": body?.background ? "1" : "0",
-        },
-        body: body ? JSON.stringify(body) : undefined,
-        signal: AbortSignal.timeout(30000),
-      });
-    } catch (e) {
-      link.disconnected();
-      throw e;
-    }
-    if (r.status === 401) {
-      link.requireLogin();
-      throw Error("Sign in to reconnect. Server jobs are still running.");
-    }
+    const r = await sessionRequest(link, identity, path, body);
     const text = await r.text();
     let b;
     try {
@@ -79,7 +63,15 @@ export async function start(identity) {
   }
   const rpc = (app, action, args = {}) =>
     api("rpc", { device, client, ...args, app, action });
-  config = await rpc("org.neon.settings", "config.get");
+  try {
+    config = await rpc("org.neon.settings", "config.get");
+  } catch (error) {
+    link.stop();
+    throw error;
+  }
+  let savedWindows = structuredClone(
+    config.recovery === false ? [] : config.windows || [],
+  );
   setLanguage(config.language || "en");
   config.pins ??= [];
   config.shortcuts ??= [];
@@ -104,7 +96,7 @@ export async function start(identity) {
     (action, args) => rpc("org.neon.settings", action, args),
     notify,
   );
-  root.append(top, menu, host, tasks, toastArea);
+  root.replaceChildren(top, menu, host, tasks, toastArea);
   const wm = new WindowManager(host, changed);
   function changed() {
     tasks.replaceChildren(
@@ -119,17 +111,25 @@ export async function start(identity) {
     if (!restoring) save();
   }
   function save() {
+    if (restoring) return;
     pendingSave = true;
     clearTimeout(timer);
     timer = setTimeout(() => flush().catch(() => {}), 350);
   }
   async function flush() {
+    if (restoring) return;
     clearTimeout(timer);
     config.windows = config.recovery === false ? [] : wm.snapshot();
     const value = JSON.parse(JSON.stringify(config));
     const task = saveQueue
       .catch(() => {})
-      .then(() => rpc("org.neon.settings", "config.save", { value }));
+      .then(async () => {
+        await rpc("org.neon.settings", "config.save", {
+          value,
+          windowChanges: windowChanges(savedWindows, value.windows),
+        });
+        savedWindows = value.windows;
+      });
     saveQueue = task;
     try {
       await task;
@@ -192,6 +192,10 @@ export async function start(identity) {
       el("div", { class: "loading", text: "Opening " + app.name + "…" }),
     );
     try {
+      // Check before importing authenticated modules. Failed module fetches can
+      // otherwise remain cached as failures for the lifetime of this document.
+      if (!(await link.ready({ verify: true })))
+        throw Error("This desktop has closed.");
       if (app.runtime === "core") {
         const module = await loaders[id]();
         w.content.replaceChildren();
@@ -463,7 +467,7 @@ export async function start(identity) {
   tick();
   setInterval(tick, 1000);
   if (config.recovery !== false)
-    for (const saved of (config.windows || []).slice(0, 20))
+    for (const saved of (config.windows || []).slice(0, 50))
       await open(saved.app, saved);
   restoring = false;
   changed();

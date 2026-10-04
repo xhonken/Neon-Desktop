@@ -12,7 +12,18 @@ An independent Linux web desktop for Raspberry Pi 5 and Debian ARM64. Sign in wi
 - Manifest-driven applications, movable/resizable windows, per-user desktop recovery and preferences.
 - Third-party frontend apps run in opaque-origin iframes with a versioned capability bridge. Backend plugins are not enabled.
 
-## Develop on Debian ARM64
+## Get the source
+
+```sh
+git clone https://github.com/xhonken/Neon-Desktop.git
+cd Neon-Desktop
+```
+
+`main` contains current development. For a versioned snapshot, select a tag or
+download a source archive from [Releases](https://github.com/xhonken/Neon-Desktop/releases).
+All current versions are development prereleases.
+
+## Develop on Debian
 
 Use a dedicated development system. System dependencies:
 
@@ -48,6 +59,8 @@ Open `https://YOUR_SERVER_IP/` and sign in with an existing eligible Linux accou
 
 ## Documentation
 
+- [Project overview and maintainer handover](docs/HANDOVER.md)
+- [Contributing and versioned releases](docs/VERSIONING.md)
 - [Codex and Qwen Coder applications](docs/CODING_APPS.md)
 
 - [Accounts, browser logins and Trash](docs/ACCOUNTS_AND_TRASH.md)
@@ -69,4 +82,9 @@ Open `https://YOUR_SERVER_IP/` and sign in with an existing eligible Linux accou
 - [Status and release gates](docs/STATUS.md)
 - [Changelog](CHANGELOG.md)
 
-Public release artifacts must exclude credentials, site configuration, HOME data, browser profiles, session databases, logs and local acceptance screenshots. A source release can be built with `python3 scripts/package.py` after tests/build. GitHub publication is a separate owner decision.
+Public release artifacts exclude credentials, site configuration, HOME data,
+browser profiles, session databases, logs and local acceptance screenshots.
+Build a source archive with `python3 scripts/package.py` after tests/build.
+GitHub checks each push and pull request; a new version on `main` produces a
+release and tag after checks pass. Deployment to an existing server is a separate
+administrative operation; follow [UPDATES.md](docs/UPDATES.md).

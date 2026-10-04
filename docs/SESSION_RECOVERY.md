@@ -5,7 +5,7 @@
 | Event | Server-side behavior | Returning to the desktop |
 | --- | --- | --- |
 | Client internet loss or broken WebSocket | Local shells, their jobs, SSH clients and Chromium continue | Terminal/browser views retry automatically with bounded backoff |
-| Browser tab/window closed | Server processes continue | Sign in/open the desktop again; saved windows reattach |
+| Browser tab/window closed or another client device used | Server processes continue | Sign in/open the desktop; the shared saved windows reattach to the same processes |
 | Sign out or web-session expiry/revocation | Access is revoked; processes are not stopped | Authenticate again; expired access can be renewed in place without replacing the current document |
 | Terminal app window closed | Detach only; do not send hangup | Use Sessions in the menu bar to select a running terminal |
 | Stop process / shell exit | That terminal ends | All views of that terminal close, including taskbar and saved layout entries; recovery never substitutes a new shell for the old ID |
@@ -16,7 +16,29 @@ There is no automatic disconnected idle shutdown for Chromium. Existing CPU/memo
 
 The SSH connection originates on the Pi. Losing the connection between the client device and Neon does not close that SSH connection. If the Pi itself loses its connection to the remote SSH host, normal SSH transport limitations still apply. Long-running remote jobs that must also survive that failure need a session supervisor on the remote host, such as tmux, or an appropriate remote job service. Neon does not silently install or alter remote-host software.
 
+## In-place screen lock and active use
+
+The visible desktop checks its login every 30 seconds and when returning to the
+tab or reconnecting. Trusted clicks, key presses and scrolling renew idle access,
+with requests limited to one check per 30 seconds during normal operation.
+Background checks, synthetic events and streamed output do not keep an inactive
+desktop unlocked. The server still enforces 30-minute idle and 12-hour absolute
+expiry, account locks, credential changes and explicit revocation.
+
+Expired access opens an opaque modal over the same document. Sign in with the
+original Linux account to resume. Open windows, unsaved editor text and retained
+terminal processes are preserved; no page reload is needed. Apps wait for valid
+authentication before loading protected modules. A request rejected with HTTP401
+can resume once after login with fresh CSRF; timed-out/disconnected mutations are
+never automatically replayed because their outcome may be unknown.
+
+A configuration-read failure during initial desktop startup leaves the sign-in
+form available for another attempt. Reopening the document to install a frontend
+update is separate from recovering an expired session.
+
 ## Terminal history and discovery
+
+Open windows follow the Linux account across client devices. Click inside a terminal to take input control; a separate takeover button is no longer required. The same terminal ID and server process are reused. Only input typed while a connected control claim is completing is briefly queued; input made while disconnected is never replayed.
 
 Sessions lists only running terminal/SSH sessions, with a direct Stop button per row. Successfully stopped sessions disappear immediately; the open list refreshes every two seconds to remove sessions that ended elsewhere. Jobs & Sessions also hides ended terminals. Closing the picker stops its refresh timer. Stopping a session also closes its open desktop windows, including minimized views. Connected views on other devices close on the server end notification; disconnected views reconcile when they reconnect. Natural shell exit has the same effect. A temporary connection failure alone does not close a window. Reattaching uses the existing ID and does not launch another shell. Terminal input is not buffered/replayed automatically while disconnected, avoiding duplicate commands. The worker retains the most recent 256 KiB of terminal output per session, not an unlimited durable job log. Up to eight live terminals and a bounded recent-ended history are retained per worker. Write long job logs to a file when the complete output matters.
 
@@ -41,3 +63,10 @@ The new browser controller has no idle termination timer. Do not restart a live 
 `tests/live_persistence.py HTTPS_ORIGIN CONTROLLER_LINUX_USER` runs as root on a development host. It creates/removes a disposable PAM account and loopback-only SSH/HTTP fixtures, without changing the installed SSH daemon's policy. The controller user needs access to the checkout and its dependencies. A generated password is supplied only through subprocess stdin, never an argument or file.
 
 The installed graphical test checks forced client network loss, stable local PTY, actual OpenSSH job completion after logout, unsaved editor recovery, in-place login after revocation, identical Chromium PID/URL, detached-session reattachment and honest ended-session status. It terminates only its own disposable-account processes during cleanup. Unit tests additionally cover reconnect authentication rotation, missing-process refusal and closing a window during attachment.
+
+`tests/live_session_recovery.py CONTROLLER_LINUX_USER`, run as root, additionally
+checks startup retry, expiry without any open stream, trusted-input renewal,
+opening a lazy app after expiry, absolute expiry and network recovery. Only its
+disposable account's session timestamps are aged; authentication uses actual PAM.
+The test verifies the same editor DOM, terminal ID/PID, kernel UID and a real
+PTY-written file, then removes only its own account and processes.

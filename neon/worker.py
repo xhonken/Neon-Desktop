@@ -32,7 +32,7 @@ class Terminal:
         self.kind = "shell"
         self.host = ""
         self.owner = None
-        self.clients = set()
+        self.clients = {}
         self.buffer = bytearray()
         self.last = time.monotonic()
         self.alive = True
@@ -91,10 +91,10 @@ class Terminal:
         except ChildProcessError:
             pass
         for q in self.clients:
-            try:
-                q.put_nowait(None)
-            except asyncio.QueueFull:
-                pass
+            # Slow views may lose old output, but must always receive the end.
+            if q.full():
+                q.get_nowait()
+            q.put_nowait(None)
 
     def terminate(self):
         if self.alive:
@@ -431,7 +431,12 @@ async def main():
             client = str(b.get("client", ""))
             if not re.fullmatch(r"[a-f0-9-]{36}", client):
                 raise ValueError("Invalid view identity")
-            terminals[b["id"]].owner = client
+            terminal = terminals[b["id"]]
+            terminal.owner = client
+            for queue, view in tuple(terminal.clients.items()):
+                if queue.full():
+                    queue.get_nowait()
+                queue.put_nowait({"readonly": view != client})
             result = {"ok": True}
         elif action == "terminal.rename":
             terminals[b["id"]].name = str(b["name"])[:80]
@@ -466,7 +471,7 @@ async def main():
         await ws.send_bytes(bytes(t.buffer))
         await ws.send_json({"alive": t.alive, "readonly": t.owner != client})
         q = asyncio.Queue(maxsize=32)
-        t.clients.add(q)
+        t.clients[q] = client
 
         async def output():
             while True:
@@ -474,7 +479,10 @@ async def main():
                 if data is None:
                     await ws.send_json({"alive": False})
                     return
-                await ws.send_bytes(data)
+                if isinstance(data, dict):
+                    await ws.send_json(data)
+                else:
+                    await ws.send_bytes(data)
 
         task = asyncio.create_task(output())
         try:
@@ -489,7 +497,7 @@ async def main():
                             await ws.send_json(
                                 {
                                     "readonly": True,
-                                    "error": "Another view controls this terminal; use Take control",
+                                    "error": "Another view controls this terminal; click here to type",
                                 }
                             )
                             continue
@@ -502,7 +510,9 @@ async def main():
                                     {"error": "Terminal input busy; retry"}
                                 )
         finally:
-            t.clients.discard(q)
+            t.clients.pop(q, None)
+            if t.owner == client and client not in t.clients.values():
+                t.owner = None
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
         return ws

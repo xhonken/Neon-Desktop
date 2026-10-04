@@ -1,13 +1,24 @@
 const form = document.querySelector("#login");
+let entering;
 async function enter() {
-  const r = await fetch("/api/v1/me");
-  if (r.ok) {
-    const identity = await r.json();
-    const { start } = await import("./desktop.js");
-    await start(identity);
-    return true;
+  if (entering) return entering;
+  entering = (async () => {
+    const r = await fetch("/api/v1/me", {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (r.ok) {
+      const identity = await r.json();
+      const { start } = await import("./desktop.js");
+      await start(identity);
+      return true;
+    }
+    return false;
+  })();
+  try {
+    return await entering;
+  } finally {
+    entering = null;
   }
-  return false;
 }
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -22,18 +33,15 @@ form.addEventListener("submit", async (event) => {
         username: form.username.value,
         password: form.password.value,
       }),
+      signal: AbortSignal.timeout(15000),
     });
     form.password.value = "";
     if (!r.ok) throw Error();
-    await enter();
+    if (!(await enter())) throw Error();
   } catch {
     const error = document.querySelector("#login-error");
-    if (error) error.textContent = "Sign in failed.";
-    else {
-      const p = document.createElement("p");
-      p.textContent = "The desktop could not start. Reload to retry.";
-      document.querySelector("#root").append(p);
-    }
+    if (error)
+      error.textContent = "Sign in or connection failed. Please try again.";
   } finally {
     button.disabled = false;
   }

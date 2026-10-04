@@ -58,10 +58,10 @@ export class WindowManager {
     const b = this.bounds(),
       n = this.windows.size;
     const w = {
-      id: crypto.randomUUID(),
+      id: saved.id || crypto.randomUUID(),
       app,
       g: constrain(
-        saved.g || {
+        (saved.maximized ? { x: 0, y: 0, w: b.w, h: b.h } : saved.g) || {
           x: 60 + n * 28,
           y: 45 + n * 26,
           w: app.window.width,
@@ -71,7 +71,8 @@ export class WindowManager {
       ),
       min: { w: app.window.minWidth, h: app.window.minHeight },
       minimized: false,
-      maximized: false,
+      maximized: !!saved.maximized,
+      restore: saved.restore || saved.g,
       state: saved.state || {},
       title: app.name,
       cleanup: () => {},
@@ -92,6 +93,7 @@ export class WindowManager {
       header,
       w.content,
     );
+    w.node.dataset.windowId = w.id;
     const control = (text, label, fn) => {
       const e = button(text, fn, "window-control");
       e.setAttribute("aria-label", label);
@@ -186,7 +188,7 @@ export class WindowManager {
   }
   maximize(w) {
     if (w.maximized) {
-      w.g = w.restore;
+      w.g = constrain(w.restore || w.g, this.bounds(), w.min);
       w.maximized = false;
     } else {
       w.restore = { ...w.g };
@@ -235,10 +237,13 @@ export class WindowManager {
   }
   snapshot() {
     return [...this.windows.values()].map((w) => ({
+      id: w.id,
       app: w.app.id,
       g: w.g,
       state: w.state,
       minimized: w.minimized,
+      maximized: w.maximized,
+      restore: w.restore,
     }));
   }
 }

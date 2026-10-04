@@ -103,7 +103,7 @@ export async function mount(w, c) {
         }),
       );
       note(
-        "Disconnecting, signing out or closing a window leaves terminal and Chromium processes running. Use Server sessions to reattach even with layout recovery disabled. Stop process / End session explicitly terminates a session. Editor drafts are recovered separately; server restart or power loss cannot preserve running processes.",
+        "Open windows follow your account when you sign in on another device. Disconnecting, signing out or closing a window leaves terminal and Chromium processes running. Click in a terminal to type. Use Server sessions to reattach even with layout recovery disabled. Stop process / End session explicitly terminates a session. Editor drafts are recovered separately; server restart or power loss cannot preserve running processes.",
       );
     } else if (section === "Menu Bar") {
       note(

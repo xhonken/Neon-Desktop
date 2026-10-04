@@ -16,6 +16,7 @@ import struct
 import time
 import uuid
 from .fs import HomeFS, beneath, clean
+from .desktop_state import DesktopState
 
 ROOT = Path(__file__).resolve().parents[1]
 try:
@@ -609,18 +610,11 @@ class Workbench:
                 self.history(entry["path"], current)
                 self.fs.write(entry["path"], data, expected=b["expected"])
                 return {"ok": True, "revision": hashlib.sha256(data).hexdigest()}
-        if action.startswith("config.") and b.get("device"):
-            device = b["device"]
-            if not re.fullmatch(r"[a-f0-9-]{36}", device):
-                raise ValueError("Invalid device ID")
-            path = self.config + "/desktop-" + device + ".json"
+        if action in ("config.get", "config.save"):
+            desktop = DesktopState(self.fs)
             if action == "config.get":
-                return self.load(path, self.load(self.config + "/desktop.json", {}))
-            value = b["value"]
-            if not isinstance(value, dict) or len(json.dumps(value)) > 262144:
-                raise ValueError("Invalid desktop configuration")
-            self.store(path, value)
-            return {"ok": True}
+                return desktop.get(b.get("device"))
+            return desktop.save(b.get("device"), b["value"], b.get("windowChanges"))
         if action == "document.lease":
             path = clean(b["path"])
             client = str(b["client"])

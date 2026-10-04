@@ -30,7 +30,8 @@ NoNewPrivileges and an empty capability bounding set are intentional: the web te
 
 - `/etc/neon-desktop/environment`: deployment origin, no passwords.
 - `/var/lib/neon-broker/sessions.sqlite3`: root-private sessions, grants and audit metadata. Session tokens are stored only as SHA-256 digests. CSRF tokens are not login credentials.
-- `~/.config/neon-desktop/desktop.json`: geometry, pins, settings, document paths and terminal IDs.
+- `~/.config/neon-desktop/workspace.json`: shared window identities, geometry, app recovery state and terminal IDs.
+- `~/.config/neon-desktop/desktop-<device UUID>.json`: device preferences; `desktop.json` retains legacy/default preferences.
 - `~/.config/neon-desktop/editor-<uuid>.json`: bounded private editor recovery snapshots, separate from explicit document saves.
 - `~/.config/neon-desktop/ssh-hosts.json`: nonsecret host metadata only.
 - `~/.local/share/neon-desktop/browser`: per-user Chromium profile.
@@ -52,7 +53,9 @@ Python is provided by Debian; aiohttp runs in the separately pinned environment 
 
 Current code is selected by a root-owned immutable release symlink. Each new worker uses a generation-specific unit/socket and terminal ID; the broker discovers retained workers for the authenticated UID. Browser units retain their running process across code switches. Background jobs have separate transient systemd units and fixed unprivileged runners pinned to their release. Job commands are read only after Linux identity isolation.
 
-Device layouts use `desktop-<device UUID>.json`; SSH profiles remain nonsecret JSON. Imported encrypted keys live in `.ssh`; an agent in the private worker runtime holds temporarily unlocked identities. History and job output live beneath `~/.local/share/neon-desktop/`. These are explicit snapshots/job records, not a mirror of the filesystem.
+Device preferences use `desktop-<device UUID>.json`; the shared window list uses `workspace.json`. Stable window IDs and per-view change sets merge independent device edits. SSH profiles remain nonsecret JSON. Imported encrypted keys live in `.ssh`; an agent in the private worker runtime holds temporarily unlocked identities. History and job output live beneath `~/.local/share/neon-desktop/`. These are explicit snapshots/job records, not a mirror of the filesystem.
+
+Window change sets explicitly identify new opens. Updating an absent window cannot recreate it. The private workspace also retains the latest 2,000 closed window IDs for older clients and whole-layout saves; close records survive worker restarts without growing indefinitely. Closing wins over an update in the same change set.
 
 ## Alpha.4 application distribution
 

@@ -92,15 +92,17 @@ class WorkbenchTests(unittest.IsolatedAsyncioTestCase):
         a = "a" * 8 + "-" + "a" * 4 + "-" + "a" * 4 + "-" + "a" * 4 + "-" + "a" * 12
         b = a.replace("a", "b")
         await self.w.dispatch(
-            {"action": "config.save", "device": a, "value": {"windows": [1]}}
+            {"action": "config.save", "device": a, "value": {"marker": "first", "windows": [{"id": a, "app": "org.neon.terminal"}]}}
         )
         await self.w.dispatch(
-            {"action": "config.save", "device": b, "value": {"windows": [2]}}
+            {"action": "config.save", "device": b, "value": {"marker": "second"}, "windowChanges": {"upsert": [{"id": b, "app": "org.neon.files"}]}}
         )
         self.assertEqual(
-            (await self.w.dispatch({"action": "config.get", "device": a}))["windows"],
-            [1],
+            len((await self.w.dispatch({"action": "config.get", "device": a}))["windows"]),
+            2,
         )
+        self.assertEqual((await self.w.dispatch({"action": "config.get", "device": a}))["marker"], "first")
+        self.assertEqual((await self.w.dispatch({"action": "config.get", "device": b}))["marker"], "second")
         self.assertTrue(
             (
                 await self.w.dispatch(
